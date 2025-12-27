@@ -63,24 +63,38 @@ Keep language appropriate for Grade ${youngestGrade}.
  */
 function buildPuzzlePrompt(params: StoryGenerationParams): string {
   const { subject, questionsPerKid, kids } = params;
-  const subjectType = subject === 'math' ? 'math' : 'reading/language';
+  const subjectType = subject === 'math' ? 'math word problems' : 'reading/language problems';
 
   const kidRequirements = kids.map(k =>
     `- "${k.alias}": ${questionsPerKid} problems for Grade ${k.grade}, Difficulty ${k.difficultyLevel}/5`
   ).join('\n');
 
   return `
-Generate ${subjectType} problems for these children:
+Generate ${subjectType} for these children:
 
 ${kidRequirements}
 
 DIFFICULTY GUIDE:
-1/5 = Very easy, 2/5 = Easy, 3/5 = Medium, 4/5 = Hard, 5/5 = Very challenging
+- Difficulty 1/5: Very easy, basic concepts
+- Difficulty 2/5: Easy, simple problems
+- Difficulty 3/5: Medium, grade-appropriate challenge
+- Difficulty 4/5: Hard, requires more thinking
+- Difficulty 5/5: Very challenging, advanced for grade level
+
+GRADE LEVELS:
+- Grade K = Kindergarten (age 5-6)
+- Grade 1-2 = Early elementary (age 6-8)
+- Grade 3-4 = Upper elementary (age 8-10)
+- Grade 5-6 = Middle school prep (age 10-12)
+
+IMPORTANT:
+- All problems must be WORD PROBLEMS with a story context (e.g., "Emma has 5 apples and finds 3 more. How many apples does she have?")
+- Do NOT use raw arithmetic like "5+3=" or "342+89"
+- Make problems fun and relatable for children
 
 Respond with JSON:
 {
   "kidAlias1": [
-    { "problem": "...", "solution": "..." },
     { "problem": "...", "solution": "..." }
   ],
   "kidAlias2": [
