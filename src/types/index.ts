@@ -15,12 +15,12 @@ export interface ProblemContent {
   kidAlias: string;
   kidName: string;
   text: string;
+  solution: string;
 }
 
 export interface StoryStage {
   content: string;
-  problem?: ProblemContent;
-  solution?: string;
+  problems: ProblemContent[]; // Multiple problems per stage (one per kid)
 }
 
 export interface Story {

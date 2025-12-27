@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { v4 as uuidv4 } from 'uuid';
+import * as Crypto from 'expo-crypto';
 import { Story, StoryStage, Kid, Subject } from '../types';
 
 const STORIES_STORAGE_KEY = 'clue_story_stories';
@@ -66,7 +66,7 @@ export const useStoriesStore = create<StoriesState & StoriesActions>((set, get) 
     rawResponse: string
   ): Promise<Story> => {
     const newStory: Story = {
-      id: uuidv4(),
+      id: Crypto.randomUUID(),
       title,
       subject,
       role,

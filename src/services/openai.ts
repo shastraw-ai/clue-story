@@ -1,10 +1,19 @@
 // storyGenerator.ts
-import { StoryGenerationParams } from '../types';
+import { StoryGenerationParams, Kid, StoryStage, ProblemContent } from '../types';
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const MODEL = 'gpt-5-nano';
+const MODEL = 'gpt-4o-mini';
 
-type ProblemSlot = { id: number; kid: string };
+// Debug flag - set to true to see logs
+const DEBUG = false;
+
+function debugLog(label: string, data: unknown) {
+  if (DEBUG) {
+    console.log(`\n========== ${label} ==========`);
+    console.log(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+    console.log('================================\n');
+  }
+}
 
 /**
  * Convert grade string to number for comparison
@@ -15,11 +24,11 @@ function gradeToNumber(grade: string): number {
 }
 
 /**
- * Build story skeleton prompt (no puzzles yet)
+ * Build story skeleton prompt (narrative only, no puzzles)
  */
-function buildStorySkeletonPrompt(params: StoryGenerationParams): string {
+function buildStoryPrompt(params: StoryGenerationParams): string {
   const { theme, role, questionsPerKid, kids } = params;
-  const totalStages = kids.length * questionsPerKid;
+  const totalStages = questionsPerKid;
   const youngestGrade = kids.reduce((min, k) => {
     const num = gradeToNumber(k.grade);
     return num < gradeToNumber(min) ? k.grade : min;
@@ -28,44 +37,70 @@ function buildStorySkeletonPrompt(params: StoryGenerationParams): string {
   const kidAliases = kids.map(k => k.alias).join(', ');
 
   return `
-You are a children's bedtime story writer creating an interactive adventure.
+You are a children's bedtime story writer.
 
-Create a mystery story with EXACTLY ${totalStages} stages.
+Create a story with EXACTLY ${totalStages} stages.
 
-STORY STRUCTURE:
-- The children (${kidAliases}) are ${role} exploring ${theme}
-- Each stage presents a challenge that blocks their path forward
-- Solving the problem in each stage unlocks the next part of the adventure
-- The story should feel like a quest where each puzzle is a key to progress
+CHARACTERS: ${kidAliases}
 
-FORMATTING RULES (STRICT):
+STORY:
+- The children are ${role} exploring ${theme}
+- Each stage has a challenge for the team
+- Make it magical and adventurous
+
+FORMAT:
 - Start each stage with: === STAGE X ===
-- Write engaging narration that sets up why they need to solve a problem
-- End each stage's narration with a situation where they encounter an obstacle
-- Place EXACTLY ONE placeholder where the problem should go:
-  <PROBLEM_SLOT id="X" kid="ALIAS_NAME" />
-- Assign kids in round-robin order: ${kidAliases}
-- Do NOT write any actual puzzles or solutions
+- Write 2-3 paragraphs per stage
+- Do NOT include any puzzles - just narrative
+- End with a conclusion after stage ${totalStages}
 
-LANGUAGE:
-- Keep it age-appropriate for Grade ${youngestGrade}
-- Use vivid descriptions but simple vocabulary
-- Make it feel magical and adventurous
-
-End with a satisfying conclusion AFTER the final stage where they achieve their goal.
-
-Begin now.
+Keep language appropriate for Grade ${youngestGrade}.
 `.trim();
 }
 
 /**
- * Generate story skeleton from LLM
+ * Build puzzle prompt - simple: N problems per kid at their level
  */
-async function generateStorySkeleton(
+function buildPuzzlePrompt(params: StoryGenerationParams): string {
+  const { subject, questionsPerKid, kids } = params;
+  const subjectType = subject === 'math' ? 'math' : 'reading/language';
+
+  const kidRequirements = kids.map(k =>
+    `- "${k.alias}": ${questionsPerKid} problems for Grade ${k.grade}, Difficulty ${k.difficultyLevel}/5`
+  ).join('\n');
+
+  return `
+Generate ${subjectType} problems for these children:
+
+${kidRequirements}
+
+DIFFICULTY GUIDE:
+1/5 = Very easy, 2/5 = Easy, 3/5 = Medium, 4/5 = Hard, 5/5 = Very challenging
+
+Respond with JSON:
+{
+  "kidAlias1": [
+    { "problem": "...", "solution": "..." },
+    { "problem": "...", "solution": "..." }
+  ],
+  "kidAlias2": [
+    { "problem": "...", "solution": "..." }
+  ]
+}
+
+Use the exact kid names as keys: ${kids.map(k => k.alias).join(', ')}
+`.trim();
+}
+
+/**
+ * Generate story narrative from LLM
+ */
+async function generateStoryNarrative(
   params: StoryGenerationParams,
   apiKey: string
 ): Promise<string> {
-  const prompt = buildStorySkeletonPrompt(params);
+  const prompt = buildStoryPrompt(params);
+  debugLog('STORY PROMPT', prompt);
 
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
@@ -76,119 +111,42 @@ async function generateStorySkeleton(
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: 'You write children\'s adventure stories. Follow formatting rules exactly. Do not include puzzles.' },
+        { role: 'system', content: 'You write children\'s adventure stories. Follow formatting exactly.' },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.7,
-      max_tokens: 3000,
+      max_completion_tokens: 3000,
     }),
   });
 
+  const data = await response.json();
+  debugLog('STORY RESPONSE', data);
+
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `API error: ${response.status}`);
+    throw new Error(data.error?.message || `API error: ${response.status}`);
   }
 
-  const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error('Story generation failed: empty response');
+  }
 
-  if (!content) throw new Error('Story generation failed: empty response');
   return content;
 }
 
 /**
- * Extract problem slots from story skeleton
+ * Puzzle response type - map of kidAlias to array of problems
  */
-function extractProblemSlots(story: string): ProblemSlot[] {
-  const regex = /<PROBLEM_SLOT id="(\d+)" kid="([^"]+)" \/>/g;
-  const slots: ProblemSlot[] = [];
-
-  let match;
-  while ((match = regex.exec(story)) !== null) {
-    slots.push({ id: Number(match[1]), kid: match[2] });
-  }
-
-  return slots;
-}
-
-/**
- * Puzzle response structure
- */
-interface PuzzleResponse {
-  puzzles: Array<{
-    slotId: number;
-    kid: string;
-    problem: string;
-    solution: string;
-  }>;
-}
-
-/**
- * Build puzzle generation prompt (no story)
- */
-function buildPuzzlePrompt(params: StoryGenerationParams, slots: ProblemSlot[]): string {
-  const { subject, kids } = params;
-
-  const slotDetails = slots.map(slot => {
-    const kid = kids.find(k => k.alias === slot.kid)!;
-    return {
-      slotId: slot.id,
-      kid: kid.alias,
-      grade: kid.grade,
-      difficulty: kid.difficultyLevel,
-    };
-  });
-
-  const subjectGuidance =
-    subject === 'math'
-      ? `Math puzzles:
-- Difficulty 1: Simple counting, basic addition/subtraction
-- Difficulty 2: Two-digit arithmetic, simple patterns
-- Difficulty 3: Word problems, multiplication/division basics
-- Difficulty 4: Multi-step problems, fractions, geometry
-- Difficulty 5: Complex logic, algebra concepts`
-      : `Reading puzzles:
-- Difficulty 1: Rhyming words, letter patterns
-- Difficulty 2: Simple riddles, fill-in-the-blank
-- Difficulty 3: Word puzzles, vocabulary challenges
-- Difficulty 4: Logic riddles, comprehension questions
-- Difficulty 5: Complex wordplay, inference puzzles`;
-
-  return `
-Generate ${slots.length} puzzles as JSON.
-
-PUZZLE REQUIREMENTS:
-${subjectGuidance}
-
-Match each puzzle to the kid's grade level and difficulty setting.
-Puzzles should feel like "unlocking a door" to continue the adventure.
-
-SLOTS:
-${JSON.stringify(slotDetails, null, 2)}
-
-Respond with JSON in this exact format:
-{
-  "puzzles": [
-    {
-      "slotId": <number>,
-      "kid": "<alias>",
-      "problem": "<puzzle question text>",
-      "solution": "<clear step-by-step solution>"
-    }
-  ]
-}
-`.trim();
-}
+type PuzzlesByKid = Record<string, Array<{ problem: string; solution: string }>>;
 
 /**
  * Generate puzzles from LLM
  */
 async function generatePuzzles(
   params: StoryGenerationParams,
-  slots: ProblemSlot[],
   apiKey: string
-): Promise<Map<number, string>> {
-  const prompt = buildPuzzlePrompt(params, slots);
+): Promise<PuzzlesByKid> {
+  const prompt = buildPuzzlePrompt(params);
+  debugLog('PUZZLE PROMPT', prompt);
 
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
@@ -199,79 +157,93 @@ async function generatePuzzles(
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: 'You generate educational puzzles for children. Respond only with valid JSON.' },
+        { role: 'system', content: 'Generate educational puzzles. Respond only with valid JSON.' },
         { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.5,
       max_tokens: 3000,
     }),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `API error: ${response.status}`);
-  }
-
   const data = await response.json();
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Puzzle generation failed: empty response');
+  debugLog('PUZZLE RESPONSE', data);
 
-  // Parse JSON response
-  let puzzleData: PuzzleResponse;
-  try {
-    puzzleData = JSON.parse(text);
-  } catch {
-    throw new Error('Failed to parse puzzle response as JSON');
+  if (!response.ok) {
+    throw new Error(data.error?.message || `API error: ${response.status}`);
   }
 
-  if (!puzzleData.puzzles || puzzleData.puzzles.length < slots.length) {
-    console.warn(`Expected ${slots.length} puzzles, got ${puzzleData.puzzles?.length || 0}`);
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error('Puzzle generation failed: empty response');
   }
 
-  // Convert to map with XML format for stitching
-  const map = new Map<number, string>();
-  puzzleData.puzzles.forEach((puzzle) => {
-    const xmlBlock = `<PROBLEM kid="${puzzle.kid}">
-${puzzle.problem}
-</PROBLEM>
-<SOLUTION>
-${puzzle.solution}
-</SOLUTION>`;
-    map.set(puzzle.slotId, xmlBlock);
-  });
-
-  return map;
+  return JSON.parse(content) as PuzzlesByKid;
 }
 
 /**
- * Stitch puzzles into story
+ * Parse story narrative into stages (just the text content)
  */
-function stitchStory(story: string, puzzles: Map<number, string>): string {
-  return story.replace(/<PROBLEM_SLOT id="(\d+)" kid="[^"]+" \/>/g, (_, id) => {
-    const puzzle = puzzles.get(Number(id));
-    if (!puzzle) throw new Error(`Missing puzzle for slot ${id}`);
-    return puzzle;
+function parseStoryIntoStages(narrative: string): string[] {
+  const stageRegex = /===\s*STAGE\s*\d+\s*===/gi;
+  const parts = narrative.split(stageRegex).filter(s => s.trim());
+  return parts.map(p => p.trim());
+}
+
+/**
+ * Combine story stages with puzzles
+ */
+function combineStoryAndPuzzles(
+  stageContents: string[],
+  puzzles: PuzzlesByKid,
+  kids: Kid[]
+): StoryStage[] {
+  return stageContents.map((content, stageIndex) => {
+    const problems: ProblemContent[] = [];
+
+    // For each kid, get their puzzle for this stage
+    kids.forEach(kid => {
+      // Try exact match first, then case-insensitive
+      const kidPuzzles = puzzles[kid.alias] ||
+        puzzles[kid.alias.toLowerCase()] ||
+        Object.entries(puzzles).find(([key]) =>
+          key.toLowerCase() === kid.alias.toLowerCase()
+        )?.[1];
+
+      if (kidPuzzles && kidPuzzles[stageIndex]) {
+        problems.push({
+          kidAlias: kid.alias,
+          kidName: kid.name,
+          text: kidPuzzles[stageIndex].problem,
+          solution: kidPuzzles[stageIndex].solution,
+        });
+      }
+    });
+
+    return { content, problems };
   });
 }
 
 /**
- * Public API
+ * Public API - generates complete story with puzzles
  */
 export async function generateStory(
   params: StoryGenerationParams,
   apiKey: string
-): Promise<string> {
-  // 1️⃣ Generate skeleton
-  const skeleton = await generateStorySkeleton(params, apiKey);
+): Promise<{ stages: StoryStage[]; rawResponse: string }> {
+  // 1. Generate story narrative
+  const narrative = await generateStoryNarrative(params, apiKey);
 
-  // 2️⃣ Extract slots
-  const slots = extractProblemSlots(skeleton);
-  if (slots.length === 0) throw new Error('No problem slots found');
+  // 2. Generate puzzles for each kid
+  const puzzles = await generatePuzzles(params, apiKey);
 
-  // 3️⃣ Generate puzzles
-  const puzzles = await generatePuzzles(params, slots, apiKey);
+  // 3. Parse story into stages
+  const stageContents = parseStoryIntoStages(narrative);
 
-  // 4️⃣ Stitch and return
-  return stitchStory(skeleton, puzzles);
+  // 4. Combine stages with puzzles
+  const stages = combineStoryAndPuzzles(stageContents, puzzles, params.kids);
+
+  return {
+    stages,
+    rawResponse: narrative + '\n\n---PUZZLES---\n' + JSON.stringify(puzzles, null, 2),
+  };
 }

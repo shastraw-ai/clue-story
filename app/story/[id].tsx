@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable } from 'react-native';
 import {
   Text,
   Button,
@@ -13,7 +13,7 @@ import {
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useStoriesStore } from '../../src/stores/storiesStore';
 import { replaceAliasesWithNames } from '../../src/services/storyParser';
-import { Story, StoryStage, Kid } from '../../src/types';
+import { Story, StoryStage, Kid, ProblemContent } from '../../src/types';
 
 export default function StoryReaderScreen() {
   const theme = useTheme();
@@ -22,7 +22,6 @@ export default function StoryReaderScreen() {
 
   const [story, setStory] = useState<Story | null>(null);
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
-  const [showSolution, setShowSolution] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -48,14 +47,12 @@ export default function StoryReaderScreen() {
   const goToPrevious = () => {
     if (!isFirstStage) {
       setCurrentStageIndex((prev) => prev - 1);
-      setShowSolution(false);
     }
   };
 
   const goToNext = () => {
     if (!isLastStage) {
       setCurrentStageIndex((prev) => prev + 1);
-      setShowSolution(false);
     }
   };
 
@@ -85,8 +82,6 @@ export default function StoryReaderScreen() {
           <StageView
             stage={currentStage}
             kids={story.kids}
-            showSolution={showSolution}
-            onToggleSolution={() => setShowSolution(!showSolution)}
             theme={theme}
           />
         </ScrollView>
@@ -137,19 +132,36 @@ export default function StoryReaderScreen() {
 interface StageViewProps {
   stage: StoryStage;
   kids: Kid[];
-  showSolution: boolean;
-  onToggleSolution: () => void;
   theme: MD3Theme;
 }
 
-function StageView({
-  stage,
-  kids,
-  showSolution,
-  onToggleSolution,
-  theme,
-}: StageViewProps) {
+function StageView({ stage, kids, theme }: StageViewProps) {
+  const [selectedKidIndex, setSelectedKidIndex] = useState(0);
+  const [showSolutions, setShowSolutions] = useState<Record<string, boolean>>({});
+
+  // Replace aliases with real names in narrative
   const displayContent = replaceAliasesWithNames(stage.content, kids);
+
+  // Get problems in the order of kids
+  const getProblemsInOrder = (): (ProblemContent | null)[] => {
+    return kids.map((kid) => {
+      const problem = stage.problems.find(
+        (p) => p.kidAlias.toLowerCase() === kid.alias.toLowerCase()
+      );
+      return problem || null;
+    });
+  };
+
+  const problemsInOrder = getProblemsInOrder();
+  const selectedProblem = problemsInOrder[selectedKidIndex];
+  const selectedKid = kids[selectedKidIndex];
+
+  const toggleSolution = (kidAlias: string) => {
+    setShowSolutions((prev) => ({
+      ...prev,
+      [kidAlias]: !prev[kidAlias],
+    }));
+  };
 
   return (
     <View style={styles.stageContent}>
@@ -160,64 +172,128 @@ function StageView({
         </Text>
       )}
 
-      {/* Problem Card */}
-      {stage.problem && (
-        <Card
-          style={[
-            styles.problemCard,
-            { backgroundColor: theme.colors.primaryContainer },
-          ]}
-        >
-          <Card.Title
-            title={`Challenge for ${stage.problem.kidName}!`}
-            titleVariant="titleMedium"
-            left={(props) => (
-              <IconButton
-                {...props}
-                icon="help-circle"
-                iconColor={theme.colors.primary}
-              />
-            )}
-          />
-          <Card.Content>
-            <Text variant="bodyLarge" style={{ color: theme.colors.onPrimaryContainer }}>
-              {replaceAliasesWithNames(stage.problem.text, kids)}
-            </Text>
-          </Card.Content>
-        </Card>
+      {/* Kid Tabs */}
+      {stage.problems.length > 0 && (
+        <View style={styles.tabsContainer}>
+          <Text variant="titleMedium" style={styles.challengeTitle}>
+            Challenges
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabsScroll}
+            contentContainerStyle={styles.tabsContent}
+          >
+            {kids.map((kid, index) => {
+              const hasProblem = problemsInOrder[index] !== null;
+              const isSelected = index === selectedKidIndex;
+
+              return (
+                <Pressable
+                  key={kid.id}
+                  onPress={() => setSelectedKidIndex(index)}
+                  style={[
+                    styles.tab,
+                    {
+                      backgroundColor: isSelected
+                        ? theme.colors.primaryContainer
+                        : theme.colors.surfaceVariant,
+                      borderColor: isSelected
+                        ? theme.colors.primary
+                        : 'transparent',
+                      opacity: hasProblem ? 1 : 0.5,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="labelLarge"
+                    style={{
+                      color: isSelected
+                        ? theme.colors.onPrimaryContainer
+                        : theme.colors.onSurfaceVariant,
+                    }}
+                  >
+                    {kid.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
       )}
 
-      {/* Solution Section */}
-      {stage.solution && (
-        <View style={styles.solutionSection}>
-          <Button
-            mode="outlined"
-            icon={showSolution ? 'eye-off' : 'eye'}
-            onPress={onToggleSolution}
-            style={styles.solutionButton}
+      {/* Selected Kid's Problem */}
+      {selectedProblem && selectedKid && (
+        <View style={styles.problemSection}>
+          <Card
+            style={[
+              styles.problemCard,
+              { backgroundColor: theme.colors.primaryContainer },
+            ]}
           >
-            {showSolution ? 'Hide Solution' : 'Show Solution'}
-          </Button>
+            <Card.Title
+              title={`${selectedKid.name}'s Challenge`}
+              titleVariant="titleMedium"
+              left={(props) => (
+                <IconButton
+                  {...props}
+                  icon="help-circle"
+                  iconColor={theme.colors.primary}
+                />
+              )}
+            />
+            <Card.Content>
+              <Text
+                variant="bodyLarge"
+                style={{ color: theme.colors.onPrimaryContainer }}
+              >
+                {replaceAliasesWithNames(selectedProblem.text, kids)}
+              </Text>
+            </Card.Content>
+          </Card>
 
-          {showSolution && (
-            <Card
-              style={[
-                styles.solutionCard,
-                { backgroundColor: theme.colors.secondaryContainer },
-              ]}
+          {/* Solution Toggle */}
+          <View style={styles.solutionSection}>
+            <Button
+              mode="outlined"
+              icon={showSolutions[selectedProblem.kidAlias] ? 'eye-off' : 'eye'}
+              onPress={() => toggleSolution(selectedProblem.kidAlias)}
+              style={styles.solutionButton}
             >
-              <Card.Title title="Solution" titleVariant="titleSmall" />
-              <Card.Content>
-                <Text
-                  variant="bodyMedium"
-                  style={{ color: theme.colors.onSecondaryContainer }}
-                >
-                  {replaceAliasesWithNames(stage.solution, kids)}
-                </Text>
-              </Card.Content>
-            </Card>
-          )}
+              {showSolutions[selectedProblem.kidAlias]
+                ? 'Hide Solution'
+                : 'Show Solution'}
+            </Button>
+
+            {showSolutions[selectedProblem.kidAlias] && (
+              <Card
+                style={[
+                  styles.solutionCard,
+                  { backgroundColor: theme.colors.secondaryContainer },
+                ]}
+              >
+                <Card.Title title="Solution" titleVariant="titleSmall" />
+                <Card.Content>
+                  <Text
+                    variant="bodyMedium"
+                    style={{ color: theme.colors.onSecondaryContainer }}
+                  >
+                    {replaceAliasesWithNames(selectedProblem.solution, kids)}
+                  </Text>
+                </Card.Content>
+              </Card>
+            )}
+          </View>
         </View>
+      )}
+
+      {/* No problems message */}
+      {stage.problems.length === 0 && (
+        <Surface style={styles.noProblemsCard} elevation={1}>
+          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+            No challenges in this stage.
+          </Text>
+        </Surface>
       )}
     </View>
   );
@@ -250,18 +326,44 @@ const styles = StyleSheet.create({
   narrative: {
     lineHeight: 28,
   },
-  problemCard: {
+  challengeTitle: {
+    marginBottom: 8,
+  },
+  tabsContainer: {
     marginTop: 8,
   },
+  tabsScroll: {
+    flexGrow: 0,
+  },
+  tabsContent: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  tab: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 2,
+  },
+  problemSection: {
+    gap: 12,
+  },
+  problemCard: {
+    marginTop: 4,
+  },
   solutionSection: {
-    marginTop: 16,
     gap: 12,
   },
   solutionButton: {
     alignSelf: 'center',
   },
   solutionCard: {
-    marginTop: 8,
+    marginTop: 4,
+  },
+  noProblemsCard: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   navigation: {
     flexDirection: 'row',

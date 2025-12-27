@@ -1,4 +1,4 @@
-import { Kid, StoryStage } from '../types';
+import { Kid, StoryStage, ProblemContent } from '../types';
 
 /**
  * Parses the raw OpenAI response into structured story stages
@@ -13,48 +13,41 @@ export function parseStoryResponse(rawResponse: string, kids: Kid[]): StoryStage
     return [
       {
         content: rawResponse,
-        problem: undefined,
-        solution: undefined,
+        problems: [],
       },
     ];
   }
 
   return stageParts.map((stagePart) => {
-    const stage: StoryStage = { content: '' };
+    const problems: ProblemContent[] = [];
 
-    // Extract PROBLEM tag
-    const problemMatch = stagePart.match(
-      /<PROBLEM\s+kid="([^"]+)">([\s\S]*?)<\/PROBLEM>/i
-    );
+    // Extract ALL PROBLEM tags with their SOLUTION tags
+    const problemRegex = /<PROBLEM\s+kid="([^"]+)">([\s\S]*?)<\/PROBLEM>\s*<SOLUTION>([\s\S]*?)<\/SOLUTION>/gi;
+    let match;
 
-    if (problemMatch) {
-      const kidAlias = problemMatch[1].trim();
+    while ((match = problemRegex.exec(stagePart)) !== null) {
+      const kidAlias = match[1].trim();
       const kid = kids.find(
         (k) => k.alias.toLowerCase() === kidAlias.toLowerCase()
       );
-      stage.problem = {
+      problems.push({
         kidAlias,
         kidName: kid?.name || kidAlias,
-        text: problemMatch[2].trim(),
-      };
+        text: match[2].trim(),
+        solution: match[3].trim(),
+      });
     }
 
-    // Extract SOLUTION tag
-    const solutionMatch = stagePart.match(/<SOLUTION>([\s\S]*?)<\/SOLUTION>/i);
-
-    if (solutionMatch) {
-      stage.solution = solutionMatch[1].trim();
-    }
-
-    // Clean content (remove tags, keep narrative)
-    let content = stagePart
+    // Clean content (remove all problem/solution tags, keep narrative)
+    const content = stagePart
       .replace(/<PROBLEM[^>]*>[\s\S]*?<\/PROBLEM>/gi, '')
       .replace(/<SOLUTION>[\s\S]*?<\/SOLUTION>/gi, '')
       .trim();
 
-    stage.content = content;
-
-    return stage;
+    return {
+      content,
+      problems,
+    };
   });
 }
 

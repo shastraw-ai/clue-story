@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { v4 as uuidv4 } from 'uuid';
+import * as Crypto from 'expo-crypto';
 import { Kid, Gender } from '../types';
 import { BOY_ALIASES, GIRL_ALIASES } from '../constants/aliases';
 import { MAX_KIDS } from '../constants/examples';
@@ -68,7 +68,7 @@ export const useKidsStore = create<KidsState & KidsActions>((set, get) => ({
 
     const alias = getNextAlias(gender);
     const newKid: Kid = {
-      id: uuidv4(),
+      id: Crypto.randomUUID(),
       name,
       grade,
       gender,

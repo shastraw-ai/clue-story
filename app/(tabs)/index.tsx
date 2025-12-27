@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import {
   Text,
@@ -25,7 +25,7 @@ import {
   MAX_QUESTIONS_PER_KID,
 } from '../../src/constants/examples';
 import { generateStory } from '../../src/services/openai';
-import { parseStoryResponse, generateStoryTitle } from '../../src/services/storyParser';
+import { generateStoryTitle } from '../../src/services/storyParser';
 
 export default function CreateStoryScreen() {
   const theme = useTheme();
@@ -38,6 +38,13 @@ export default function CreateStoryScreen() {
   const [storyTheme, setStoryTheme] = useState('');
   const [questionsPerKid, setQuestionsPerKid] = useState(2);
   const [selectedKidIds, setSelectedKidIds] = useState<string[]>([]);
+
+  // Select all kids by default when kids list changes
+  useEffect(() => {
+    if (kids.length > 0) {
+      setSelectedKidIds(kids.map((kid) => kid.id));
+    }
+  }, [kids]);
 
   const toggleKidSelection = (kidId: string) => {
     setSelectedKidIds((prev) =>
@@ -66,7 +73,7 @@ export default function CreateStoryScreen() {
         throw new Error('API key not found');
       }
 
-      const response = await generateStory(
+      const { stages, rawResponse } = await generateStory(
         {
           subject,
           role: role.trim(),
@@ -77,7 +84,6 @@ export default function CreateStoryScreen() {
         apiKey
       );
 
-      const stages = parseStoryResponse(response, selectedKids);
       const title = generateStoryTitle(storyTheme.trim(), role.trim());
 
       const story = await addStory(
@@ -87,7 +93,7 @@ export default function CreateStoryScreen() {
         storyTheme.trim(),
         selectedKids,
         stages,
-        response
+        rawResponse
       );
 
       // Navigate to story reader
