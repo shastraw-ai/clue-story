@@ -17,7 +17,7 @@ import { router } from 'expo-router';
 import { useSettingsStore } from '../../src/stores/settingsStore';
 import { useKidsStore } from '../../src/stores/kidsStore';
 import { useStoriesStore } from '../../src/stores/storiesStore';
-import { Subject, Kid } from '../../src/types';
+import { Subject, Kid, StoryMode } from '../../src/types';
 import {
   SUBJECTS,
   EXAMPLE_THEMES,
@@ -33,6 +33,7 @@ export default function CreateStoryScreen() {
   const { kids } = useKidsStore();
   const { addStory, isGenerating, setGenerating, error, setError } = useStoriesStore();
 
+  const [mode, setMode] = useState<StoryMode>('plot');
   const [subject, setSubject] = useState<Subject>('math');
   const [role, setRole] = useState('');
   const [storyTheme, setStoryTheme] = useState('');
@@ -80,6 +81,7 @@ export default function CreateStoryScreen() {
           theme: storyTheme.trim(),
           questionsPerKid,
           kids: selectedKids,
+          mode,
         },
         apiKey
       );
@@ -149,6 +151,26 @@ export default function CreateStoryScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       contentContainerStyle={styles.content}
     >
+      {/* Mode Selection */}
+      <Card style={styles.card}>
+        <Card.Title title="Mode" />
+        <Card.Content>
+          <SegmentedButtons
+            value={mode}
+            onValueChange={(value) => setMode(value as StoryMode)}
+            buttons={[
+              { value: 'plot', label: 'Plot' },
+              { value: 'story', label: 'Story' },
+            ]}
+          />
+          <Text variant="bodySmall" style={styles.modeHint}>
+            {mode === 'plot'
+              ? 'Brief outlines for you to improvise the story'
+              : 'Full narrative ready to read aloud'}
+          </Text>
+        </Card.Content>
+      </Card>
+
       {/* Subject Selection */}
       <Card style={styles.card}>
         <Card.Title title="Subject" />
@@ -342,6 +364,11 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 12,
+  },
+  modeHint: {
+    marginTop: 8,
+    textAlign: 'center',
+    opacity: 0.7,
   },
   exampleLabel: {
     marginBottom: 8,

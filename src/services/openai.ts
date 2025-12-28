@@ -24,9 +24,44 @@ function gradeToNumber(grade: string): number {
 }
 
 /**
- * Build story prompt - narrative where characters present challenges
+ * Build plot mode prompt - brief outlines for parent improvisation
  */
-function buildStoryPrompt(params: StoryGenerationParams): string {
+function buildPlotPrompt(params: StoryGenerationParams): string {
+  const { theme, role, questionsPerKid, kids } = params;
+  const totalStages = questionsPerKid;
+  const kidAliases = kids.map(k => k.alias).join(', ');
+
+  return `
+You are helping a parent tell a bedtime story.
+
+Create EXACTLY ${totalStages} stage outlines.
+
+CHARACTERS: ${kidAliases}
+SETTING: ${theme}
+ROLE: The children are ${role}
+
+For each stage, provide a BRIEF plot outline with these elements:
+- Setting/Location for this stage
+- What the children encounter (magical character, obstacle, discovery)
+- The challenge setup (what blocks their progress)
+- Mood/atmosphere hint
+
+FORMAT:
+=== STAGE X ===
+• Setting: [where they are]
+• Encounter: [who/what they meet]
+• Challenge: [what blocks their progress]
+• Mood: [atmosphere - mysterious, exciting, cozy, etc.]
+
+Keep each stage to 4-5 lines maximum. Parents will improvise the full story.
+After stage ${totalStages}, add a brief conclusion outline.
+`.trim();
+}
+
+/**
+ * Build story mode prompt - full narrative where characters present challenges
+ */
+function buildFullStoryPrompt(params: StoryGenerationParams): string {
   const { theme, role, questionsPerKid, kids } = params;
   const totalStages = questionsPerKid;
   const youngestGrade = kids.reduce((min, k) => {
@@ -62,6 +97,16 @@ EXAMPLE STAGE ENDING:
 
 Keep language appropriate for Grade ${youngestGrade}.
 `.trim();
+}
+
+/**
+ * Build story prompt based on mode
+ */
+function buildStoryPrompt(params: StoryGenerationParams): string {
+  if (params.mode === 'plot') {
+    return buildPlotPrompt(params);
+  }
+  return buildFullStoryPrompt(params);
 }
 
 /**
@@ -115,6 +160,10 @@ async function generateStoryNarrative(
   const prompt = buildStoryPrompt(params);
   debugLog('STORY PROMPT', prompt);
 
+  const systemPrompt = params.mode === 'plot'
+    ? 'You create brief story outlines for parents. Follow formatting exactly.'
+    : 'You write children\'s adventure stories. Follow formatting exactly.';
+
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
     headers: {
@@ -124,10 +173,10 @@ async function generateStoryNarrative(
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: 'You write children\'s adventure stories. Follow formatting exactly.' },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
       ],
-      max_completion_tokens: 3000,
+      max_completion_tokens: params.mode === 'plot' ? 1500 : 3000,
     }),
   });
 

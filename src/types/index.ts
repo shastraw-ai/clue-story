@@ -2,6 +2,8 @@ export type Gender = 'boy' | 'girl';
 
 export type Subject = 'math' | 'reading';
 
+export type StoryMode = 'plot' | 'story';
+
 export interface Kid {
   id: string;
   name: string;
@@ -41,4 +43,5 @@ export interface StoryGenerationParams {
   theme: string;
   questionsPerKid: number;
   kids: Kid[];
+  mode: StoryMode;
 }
