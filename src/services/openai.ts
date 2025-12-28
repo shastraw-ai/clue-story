@@ -24,7 +24,7 @@ function gradeToNumber(grade: string): number {
 }
 
 /**
- * Build story skeleton prompt (narrative only, no puzzles)
+ * Build story prompt - narrative where characters present challenges
  */
 function buildStoryPrompt(params: StoryGenerationParams): string {
   const { theme, role, questionsPerKid, kids } = params;
@@ -35,44 +35,47 @@ function buildStoryPrompt(params: StoryGenerationParams): string {
   }, kids[0].grade);
 
   const kidAliases = kids.map(k => k.alias).join(', ');
+  const kidCount = kids.length;
 
   return `
 You are a children's bedtime story writer.
 
 Create a story with EXACTLY ${totalStages} stages.
 
-CHARACTERS: ${kidAliases}
+CHARACTERS: ${kidAliases} (${kidCount} children who are the heroes)
 
 STORY:
 - The children are ${role} exploring ${theme}
-- Each stage has a challenge for the team
-- Make it magical and adventurous
+- Each stage they encounter a magical character (wizard, fairy, talking animal, etc.)
+- The magical character blocks their path and says each child must solve a puzzle to pass
+- Make it exciting and adventurous
 
 FORMAT:
 - Start each stage with: === STAGE X ===
-- Write 2-3 paragraphs per stage
-- Do NOT include any puzzles - just narrative
-- End with a conclusion after stage ${totalStages}
+- Write 2-3 paragraphs describing the adventure and encounter
+- End each stage with the magical character announcing that each child must solve their own puzzle
+- Do NOT write the actual puzzles - just set up that puzzles are needed
+- After stage ${totalStages}, write a brief happy conclusion
+
+EXAMPLE STAGE ENDING:
+"The wise owl hooted softly. 'To cross this bridge, each of you must answer my riddle,' she said, looking at ${kidAliases} in turn."
 
 Keep language appropriate for Grade ${youngestGrade}.
 `.trim();
 }
 
 /**
- * Build puzzle prompt - simple: N problems per kid at their level
+ * Build puzzle prompt for a single kid
  */
-function buildPuzzlePrompt(params: StoryGenerationParams): string {
-  const { subject, questionsPerKid, kids } = params;
+function buildPuzzlePromptForKid(subject: string, kid: Kid, count: number): string {
   const subjectType = subject === 'math' ? 'math word problems' : 'reading/language problems';
 
-  const kidRequirements = kids.map(k =>
-    `- "${k.alias}": ${questionsPerKid} problems for Grade ${k.grade}, Difficulty ${k.difficultyLevel}/5`
-  ).join('\n');
-
   return `
-Generate ${subjectType} for these children:
+Generate ${count} ${subjectType} for a child.
 
-${kidRequirements}
+CHILD INFO:
+- Grade: ${kid.grade}
+- Difficulty: ${kid.difficultyLevel}/5
 
 DIFFICULTY GUIDE:
 - Difficulty 1/5: Very easy, basic concepts
@@ -88,21 +91,17 @@ GRADE LEVELS:
 - Grade 5-6 = Middle school prep (age 10-12)
 
 IMPORTANT:
-- All problems must be WORD PROBLEMS with a story context (e.g., "Emma has 5 apples and finds 3 more. How many apples does she have?")
+- All problems must be WORD PROBLEMS with a fun story context
 - Do NOT use raw arithmetic like "5+3=" or "342+89"
-- Make problems fun and relatable for children
+- Make problems engaging and relatable for children
+- Each problem should be different and creative
 
 Respond with JSON:
 {
-  "kidAlias1": [
-    { "problem": "...", "solution": "..." }
-  ],
-  "kidAlias2": [
+  "problems": [
     { "problem": "...", "solution": "..." }
   ]
 }
-
-Use the exact kid names as keys: ${kids.map(k => k.alias).join(', ')}
 `.trim();
 }
 
@@ -153,14 +152,16 @@ async function generateStoryNarrative(
 type PuzzlesByKid = Record<string, Array<{ problem: string; solution: string }>>;
 
 /**
- * Generate puzzles from LLM
+ * Generate puzzles for a single kid
  */
-async function generatePuzzles(
-  params: StoryGenerationParams,
+async function generatePuzzlesForKid(
+  subject: string,
+  kid: Kid,
+  count: number,
   apiKey: string
-): Promise<PuzzlesByKid> {
-  const prompt = buildPuzzlePrompt(params);
-  debugLog('PUZZLE PROMPT', prompt);
+): Promise<Array<{ problem: string; solution: string }>> {
+  const prompt = buildPuzzlePromptForKid(subject, kid, count);
+  debugLog(`PUZZLE PROMPT FOR ${kid.alias}`, prompt);
 
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
@@ -171,16 +172,16 @@ async function generatePuzzles(
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: 'Generate educational puzzles. Respond only with valid JSON.' },
+        { role: 'system', content: 'Generate educational puzzles for children. Respond only with valid JSON.' },
         { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
-      max_tokens: 3000,
+      max_tokens: 2000,
     }),
   });
 
   const data = await response.json();
-  debugLog('PUZZLE RESPONSE', data);
+  debugLog(`PUZZLE RESPONSE FOR ${kid.alias}`, data);
 
   if (!response.ok) {
     throw new Error(data.error?.message || `API error: ${response.status}`);
@@ -188,10 +189,38 @@ async function generatePuzzles(
 
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error('Puzzle generation failed: empty response');
+    throw new Error(`Puzzle generation failed for ${kid.alias}: empty response`);
   }
 
-  return JSON.parse(content) as PuzzlesByKid;
+  const parsed = JSON.parse(content) as { problems: Array<{ problem: string; solution: string }> };
+  return parsed.problems || [];
+}
+
+/**
+ * Generate puzzles for all kids (one API call per kid, in parallel)
+ */
+async function generatePuzzles(
+  params: StoryGenerationParams,
+  apiKey: string
+): Promise<PuzzlesByKid> {
+  const { subject, questionsPerKid, kids } = params;
+
+  // Make parallel API calls for each kid
+  const puzzlePromises = kids.map(kid =>
+    generatePuzzlesForKid(subject, kid, questionsPerKid, apiKey)
+      .then(problems => ({ alias: kid.alias, problems }))
+  );
+
+  const results = await Promise.all(puzzlePromises);
+
+  // Combine into PuzzlesByKid format
+  const puzzlesByKid: PuzzlesByKid = {};
+  results.forEach(({ alias, problems }) => {
+    puzzlesByKid[alias] = problems;
+  });
+
+  debugLog('ALL PUZZLES', puzzlesByKid);
+  return puzzlesByKid;
 }
 
 /**
