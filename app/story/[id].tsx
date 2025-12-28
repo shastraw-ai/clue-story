@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, ScrollView, StyleSheet, Pressable, ScrollView as ScrollViewType } from 'react-native';
 import {
   Text,
   Button,
@@ -19,6 +19,7 @@ export default function StoryReaderScreen() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getStoryById } = useStoriesStore();
+  const scrollViewRef = useRef<ScrollViewType>(null);
 
   const [story, setStory] = useState<Story | null>(null);
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
@@ -44,15 +45,21 @@ export default function StoryReaderScreen() {
   const isFirstStage = currentStageIndex === 0;
   const isLastStage = currentStageIndex === story.stages.length - 1;
 
+  const scrollToTop = () => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
   const goToPrevious = () => {
     if (!isFirstStage) {
       setCurrentStageIndex((prev) => prev - 1);
+      scrollToTop();
     }
   };
 
   const goToNext = () => {
     if (!isLastStage) {
       setCurrentStageIndex((prev) => prev + 1);
+      scrollToTop();
     }
   };
 
@@ -78,8 +85,13 @@ export default function StoryReaderScreen() {
         </Surface>
 
         {/* Story Content */}
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
           <StageView
+            key={currentStageIndex}
             stage={currentStage}
             kids={story.kids}
             theme={theme}
@@ -137,7 +149,7 @@ interface StageViewProps {
 
 function StageView({ stage, kids, theme }: StageViewProps) {
   const [selectedKidIndex, setSelectedKidIndex] = useState(0);
-  const [showSolutions, setShowSolutions] = useState<Record<string, boolean>>({});
+  const [showSolution, setShowSolution] = useState(false);
 
   // Replace aliases with real names in narrative
   const displayContent = replaceAliasesWithNames(stage.content, kids);
@@ -156,11 +168,9 @@ function StageView({ stage, kids, theme }: StageViewProps) {
   const selectedProblem = problemsInOrder[selectedKidIndex];
   const selectedKid = kids[selectedKidIndex];
 
-  const toggleSolution = (kidAlias: string) => {
-    setShowSolutions((prev) => ({
-      ...prev,
-      [kidAlias]: !prev[kidAlias],
-    }));
+  const handleKidSelect = (index: number) => {
+    setSelectedKidIndex(index);
+    setShowSolution(false); // Hide solution when switching kids
   };
 
   return (
@@ -191,7 +201,7 @@ function StageView({ stage, kids, theme }: StageViewProps) {
               return (
                 <Pressable
                   key={kid.id}
-                  onPress={() => setSelectedKidIndex(index)}
+                  onPress={() => handleKidSelect(index)}
                   style={[
                     styles.tab,
                     {
@@ -256,16 +266,14 @@ function StageView({ stage, kids, theme }: StageViewProps) {
           <View style={styles.solutionSection}>
             <Button
               mode="outlined"
-              icon={showSolutions[selectedProblem.kidAlias] ? 'eye-off' : 'eye'}
-              onPress={() => toggleSolution(selectedProblem.kidAlias)}
+              icon={showSolution ? 'eye-off' : 'eye'}
+              onPress={() => setShowSolution(!showSolution)}
               style={styles.solutionButton}
             >
-              {showSolutions[selectedProblem.kidAlias]
-                ? 'Hide Solution'
-                : 'Show Solution'}
+              {showSolution ? 'Hide Solution' : 'Show Solution'}
             </Button>
 
-            {showSolutions[selectedProblem.kidAlias] && (
+            {showSolution && (
               <Card
                 style={[
                   styles.solutionCard,
