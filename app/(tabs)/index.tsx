@@ -29,7 +29,7 @@ import { generateStoryTitle } from '../../src/services/storyParser';
 
 export default function CreateStoryScreen() {
   const theme = useTheme();
-  const { hasApiKey, getApiKey } = useSettingsStore();
+  const { hasApiKey, getApiKey, country } = useSettingsStore();
   const { kids } = useKidsStore();
   const { addStory, isGenerating, setGenerating, error, setError } = useStoriesStore();
 
@@ -83,7 +83,8 @@ export default function CreateStoryScreen() {
           kids: selectedKids,
           mode,
         },
-        apiKey
+        apiKey,
+        country || undefined
       );
 
       const title = generateStoryTitle(storyTheme.trim(), role.trim());

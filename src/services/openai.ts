@@ -1,5 +1,6 @@
 // storyGenerator.ts
 import { StoryGenerationParams, Kid, StoryStage, ProblemContent } from '../types';
+import { getGradeSystemNote } from '../constants/countries';
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const MODEL = 'gpt-4o-mini';
@@ -21,6 +22,82 @@ function debugLog(label: string, data: unknown) {
 function gradeToNumber(grade: string): number {
   if (grade === 'K') return 0;
   return parseInt(grade, 10) || 0;
+}
+
+/**
+ * Get math concepts appropriate for grade level
+ */
+function getMathConceptsForGrade(grade: string): string {
+  const gradeNum = gradeToNumber(grade);
+
+  if (gradeNum <= 2) {
+    // Grades K-2
+    return `
+MATH CONCEPTS FOR THIS GRADE:
+- Counting objects (up to 100 for grade 2)
+- Basic addition (single digits, sums up to 20)
+- Basic subtraction (single digits)
+- Skip counting by 2s, 5s, 10s
+- Comparing numbers (greater than, less than)
+- Simple patterns
+- Telling time (hours, half hours)
+- Basic shapes recognition`;
+  } else if (gradeNum <= 4) {
+    // Grades 3-4
+    return `
+MATH CONCEPTS FOR THIS GRADE:
+- Multiplication facts (up to 12x12)
+- Division with and without remainders
+- Simple fractions (1/2, 1/3, 1/4, comparing fractions)
+- Adding and subtracting fractions with same denominator
+- Multi-digit addition and subtraction (with regrouping)
+- Introduction to area and perimeter
+- Word problems with multiple steps
+- Rounding numbers
+- Basic measurement conversions`;
+  } else if (gradeNum <= 6) {
+    // Grades 5-6
+    return `
+MATH CONCEPTS FOR THIS GRADE:
+- All fraction operations (add, subtract, multiply, divide fractions)
+- Decimal operations (add, subtract, multiply, divide)
+- Converting between fractions, decimals, and percentages
+- Area and perimeter of complex shapes (triangles, parallelograms)
+- Volume of rectangular prisms and cylinders
+- Order of operations (PEMDAS/BODMAS)
+- Introduction to negative numbers
+- Ratio and proportion
+- Mean, median, mode
+- Coordinate graphing basics`;
+  } else {
+    // Grades 7+
+    return `
+MATH CONCEPTS FOR THIS GRADE:
+- Percentages and percentage change (discounts, interest, tax)
+- Ratios and proportional reasoning
+- Basic algebra (solving for x, simplifying expressions)
+- Linear equations and graphing
+- Geometry (angle relationships, triangle properties, circle calculations)
+- Probability and statistics
+- Exponents and scientific notation
+- Pythagorean theorem
+- Systems of equations (basic)
+- Surface area and volume of 3D shapes`;
+  }
+}
+
+/**
+ * Get adjusted difficulty description - makes the scale more challenging
+ */
+function getAdjustedDifficultyDescription(difficulty: number): string {
+  const descriptions: Record<number, string> = {
+    1: `Difficulty 1/5: Easy but engaging - basic concepts with straightforward application. Should still require some thinking.`,
+    2: `Difficulty 2/5: Moderate - requires understanding of concepts and 1-2 step problem solving. Not trivial.`,
+    3: `Difficulty 3/5: Challenging - multi-step problems requiring careful reasoning. Should make the child think hard.`,
+    4: `Difficulty 4/5: Hard - complex problems that push the boundaries of grade-level understanding.`,
+    5: `Difficulty 5/5: Very challenging - problems at the edge of or slightly beyond grade level. Requires advanced reasoning.`,
+  };
+  return descriptions[difficulty] || descriptions[3];
 }
 
 /**
@@ -112,8 +189,14 @@ function buildStoryPrompt(params: StoryGenerationParams): string {
 /**
  * Build puzzle prompt for a single kid
  */
-function buildPuzzlePromptForKid(subject: string, kid: Kid, count: number): string {
+function buildPuzzlePromptForKid(subject: string, kid: Kid, count: number, country?: string): string {
   const subjectType = subject === 'math' ? 'math word problems' : 'reading/language problems';
+  const mathConcepts = subject === 'math' ? getMathConceptsForGrade(kid.grade) : '';
+
+  // Country context for grade system understanding
+  const countryContext = country
+    ? `\nNOTE: This child is in the ${getGradeSystemNote(country)}. Adjust problem context appropriately.`
+    : '';
 
   return `
 Generate ${count} ${subjectType} for a child.
@@ -121,25 +204,27 @@ Generate ${count} ${subjectType} for a child.
 CHILD INFO:
 - Grade: ${kid.grade}
 - Difficulty: ${kid.difficultyLevel}/5
+${countryContext}
 
-DIFFICULTY GUIDE:
-- Difficulty 1/5: Very easy, basic concepts
-- Difficulty 2/5: Easy, simple problems
-- Difficulty 3/5: Medium, grade-appropriate challenge
-- Difficulty 4/5: Hard, requires more thinking
-- Difficulty 5/5: Very challenging, advanced for grade level
+${getAdjustedDifficultyDescription(kid.difficultyLevel)}
 
-GRADE LEVELS:
+GRADE LEVELS (Reference):
 - Grade K = Kindergarten (age 5-6)
 - Grade 1-2 = Early elementary (age 6-8)
 - Grade 3-4 = Upper elementary (age 8-10)
 - Grade 5-6 = Middle school prep (age 10-12)
+- Grade 7-8 = Middle school (age 12-14)
+- Grade 9-12 = High school (age 14-18)
+${mathConcepts}
 
-IMPORTANT:
-- All problems must be WORD PROBLEMS with a fun story context
+CRITICAL REQUIREMENTS:
+- All problems must be WORD PROBLEMS with a fun, engaging story context
 - Do NOT use raw arithmetic like "5+3=" or "342+89"
-- Make problems engaging and relatable for children
+- Problems should feel like mini-adventures or puzzles within a story
 - Each problem should be different and creative
+- The difficulty should GENUINELY match the specified level - do NOT make problems too easy
+- For difficulty 3+ include problems that require multiple steps or careful reasoning
+- Challenge the child appropriately - easy problems waste their potential
 
 Respond with JSON:
 {
@@ -207,9 +292,10 @@ async function generatePuzzlesForKid(
   subject: string,
   kid: Kid,
   count: number,
-  apiKey: string
+  apiKey: string,
+  country?: string
 ): Promise<Array<{ problem: string; solution: string }>> {
-  const prompt = buildPuzzlePromptForKid(subject, kid, count);
+  const prompt = buildPuzzlePromptForKid(subject, kid, count, country);
   debugLog(`PUZZLE PROMPT FOR ${kid.alias}`, prompt);
 
   const response = await fetch(OPENAI_API_URL, {
@@ -221,7 +307,7 @@ async function generatePuzzlesForKid(
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: 'Generate educational puzzles for children. Respond only with valid JSON.' },
+        { role: 'system', content: 'Generate educational puzzles for children. Respond only with valid JSON. Make problems appropriately challenging - do not make them too easy.' },
         { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
@@ -250,13 +336,14 @@ async function generatePuzzlesForKid(
  */
 async function generatePuzzles(
   params: StoryGenerationParams,
-  apiKey: string
+  apiKey: string,
+  country?: string
 ): Promise<PuzzlesByKid> {
   const { subject, questionsPerKid, kids } = params;
 
   // Make parallel API calls for each kid
   const puzzlePromises = kids.map(kid =>
-    generatePuzzlesForKid(subject, kid, questionsPerKid, apiKey)
+    generatePuzzlesForKid(subject, kid, questionsPerKid, apiKey, country)
       .then(problems => ({ alias: kid.alias, problems }))
   );
 
@@ -320,13 +407,14 @@ function combineStoryAndPuzzles(
  */
 export async function generateStory(
   params: StoryGenerationParams,
-  apiKey: string
+  apiKey: string,
+  country?: string
 ): Promise<{ stages: StoryStage[]; rawResponse: string }> {
   // 1. Generate story narrative
   const narrative = await generateStoryNarrative(params, apiKey);
 
   // 2. Generate puzzles for each kid
-  const puzzles = await generatePuzzles(params, apiKey);
+  const puzzles = await generatePuzzles(params, apiKey, country);
 
   // 3. Parse story into stages
   const stageContents = parseStoryIntoStages(narrative);

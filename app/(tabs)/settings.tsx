@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Platform, Alert } from 'react-native';
 import {
   Text,
   TextInput,
@@ -12,16 +12,34 @@ import {
   IconButton,
   Divider,
   Surface,
+  Switch,
+  TouchableRipple,
 } from 'react-native-paper';
 import Slider from '@react-native-community/slider';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSettingsStore } from '../../src/stores/settingsStore';
 import { useKidsStore } from '../../src/stores/kidsStore';
 import { Kid, Gender } from '../../src/types';
 import { GRADES, MAX_KIDS } from '../../src/constants/examples';
+import { COUNTRIES, getCountryByCode } from '../../src/constants/countries';
+import {
+  scheduleDailyReminder,
+  cancelDailyReminder,
+  requestNotificationPermissions,
+} from '../../src/services/notifications';
 
 export default function SettingsScreen() {
   const theme = useTheme();
-  const { hasApiKey, setApiKey, deleteApiKey } = useSettingsStore();
+  const {
+    hasApiKey,
+    setApiKey,
+    deleteApiKey,
+    notificationSettings,
+    setNotificationEnabled,
+    setNotificationTime,
+    country,
+    setCountry,
+  } = useSettingsStore();
   const { kids, addKid, updateKid, deleteKid } = useKidsStore();
 
   // API Key state
@@ -38,6 +56,12 @@ export default function SettingsScreen() {
 
   // Grade picker modal
   const [gradeModalVisible, setGradeModalVisible] = useState(false);
+
+  // Time picker state
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  // Country picker modal
+  const [countryModalVisible, setCountryModalVisible] = useState(false);
 
   const handleSaveApiKey = async () => {
     if (apiKeyInput.trim()) {
@@ -94,6 +118,52 @@ export default function SettingsScreen() {
     return grade?.label || value;
   };
 
+  // Notification handlers
+  const handleNotificationToggle = async (value: boolean) => {
+    if (value) {
+      const hasPermission = await requestNotificationPermissions();
+      if (!hasPermission) {
+        Alert.alert(
+          'Permission Required',
+          'Please enable notifications in your device settings to receive daily reminders.'
+        );
+        return;
+      }
+      await scheduleDailyReminder(notificationSettings.time);
+    } else {
+      await cancelDailyReminder();
+    }
+    await setNotificationEnabled(value);
+  };
+
+  const handleTimeChange = async (event: unknown, selectedDate?: Date) => {
+    setShowTimePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      const newTime = {
+        hour: selectedDate.getHours(),
+        minute: selectedDate.getMinutes(),
+      };
+      await setNotificationTime(newTime);
+      if (notificationSettings.enabled) {
+        await scheduleDailyReminder(newTime);
+      }
+    }
+  };
+
+  const formatTime = (hour: number, minute: number): string => {
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    const displayMinute = minute.toString().padStart(2, '0');
+    return `${displayHour}:${displayMinute} ${period}`;
+  };
+
+  // Country helpers
+  const getCountryDisplayName = (): string => {
+    if (!country) return 'Not set';
+    const found = getCountryByCode(country);
+    return found?.name || country;
+  };
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -138,6 +208,77 @@ export default function SettingsScreen() {
               </Button>
             </View>
           )}
+        </Card.Content>
+      </Card>
+
+      {/* Daily Reminder Section */}
+      <Card style={styles.card}>
+        <Card.Title title="Daily Reminder" />
+        <Card.Content>
+          <View style={styles.notificationRow}>
+            <View style={styles.notificationInfo}>
+              <Text variant="bodyMedium">Enable daily notification</Text>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                Get reminded to create bedtime stories
+              </Text>
+            </View>
+            <Switch
+              value={notificationSettings.enabled}
+              onValueChange={handleNotificationToggle}
+            />
+          </View>
+
+          {notificationSettings.enabled && (
+            <TouchableRipple
+              onPress={() => setShowTimePicker(true)}
+              style={styles.timePickerButton}
+            >
+              <View style={styles.timeRow}>
+                <Text variant="bodyMedium">Reminder time</Text>
+                <Text variant="bodyMedium" style={{ color: theme.colors.primary }}>
+                  {formatTime(notificationSettings.time.hour, notificationSettings.time.minute)}
+                </Text>
+              </View>
+            </TouchableRipple>
+          )}
+        </Card.Content>
+      </Card>
+
+      {showTimePicker && (
+        <DateTimePicker
+          value={
+            new Date(
+              2000,
+              0,
+              1,
+              notificationSettings.time.hour,
+              notificationSettings.time.minute
+            )
+          }
+          mode="time"
+          is24Hour={false}
+          display="default"
+          onChange={handleTimeChange}
+        />
+      )}
+
+      {/* Region Section */}
+      <Card style={styles.card}>
+        <Card.Title title="Region" />
+        <Card.Content>
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}
+          >
+            Helps the AI understand your grade level system
+          </Text>
+          <Button
+            mode="outlined"
+            onPress={() => setCountryModalVisible(true)}
+            style={styles.countryButton}
+          >
+            {getCountryDisplayName()}
+          </Button>
         </Card.Content>
       </Card>
 
@@ -287,6 +428,35 @@ export default function SettingsScreen() {
             ))}
           </ScrollView>
         </Modal>
+
+        {/* Country Picker Modal */}
+        <Modal
+          visible={countryModalVisible}
+          onDismiss={() => setCountryModalVisible(false)}
+          contentContainerStyle={[
+            styles.gradeModal,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text variant="titleLarge" style={styles.modalTitle}>
+            Select Country/Region
+          </Text>
+          <ScrollView style={styles.gradeList}>
+            {COUNTRIES.map((c) => (
+              <Button
+                key={c.code}
+                mode={country === c.code ? 'contained' : 'text'}
+                onPress={async () => {
+                  await setCountry(c.code);
+                  setCountryModalVisible(false);
+                }}
+                style={styles.gradeItem}
+              >
+                {c.name}
+              </Button>
+            ))}
+          </ScrollView>
+        </Modal>
       </Portal>
     </ScrollView>
   );
@@ -311,6 +481,29 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 8,
+  },
+  notificationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  notificationInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  timePickerButton: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  countryButton: {
+    marginTop: 4,
   },
   kidCard: {
     flexDirection: 'row',
