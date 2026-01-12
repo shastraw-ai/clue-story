@@ -6,6 +6,18 @@ import { detectCountry } from '../utils/locale';
 const API_KEY_STORAGE = 'openai_api_key';
 const NOTIFICATION_SETTINGS_KEY = 'notification_settings';
 const COUNTRY_SETTINGS_KEY = 'country_settings';
+const MODEL_SETTINGS_KEY = 'llm_model';
+
+export const LLM_MODELS = [
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+  { value: 'gpt-4o', label: 'GPT-4o' },
+  { value: 'gpt-4.1', label: 'GPT-4.1' },
+  { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+  { value: 'gpt-5', label: 'GPT-5' },
+] as const;
+
+export type LLMModel = typeof LLM_MODELS[number]['value'];
+export const DEFAULT_MODEL: LLMModel = 'gpt-4o-mini';
 
 export interface NotificationTime {
   hour: number;
@@ -27,6 +39,7 @@ interface SettingsState {
   isLoading: boolean;
   notificationSettings: NotificationSettings;
   country: string | null;
+  model: LLMModel;
 }
 
 interface SettingsActions {
@@ -39,6 +52,8 @@ interface SettingsActions {
   setNotificationTime: (time: NotificationTime) => Promise<void>;
   loadCountry: () => Promise<void>;
   setCountry: (country: string) => Promise<void>;
+  loadModel: () => Promise<void>;
+  setModel: (model: LLMModel) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState & SettingsActions>((set, get) => ({
@@ -46,6 +61,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>((set, ge
   isLoading: true,
   notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
   country: null,
+  model: DEFAULT_MODEL,
 
   setApiKey: async (key: string) => {
     await SecureStore.setItemAsync(API_KEY_STORAGE, key);
@@ -114,5 +130,21 @@ export const useSettingsStore = create<SettingsState & SettingsActions>((set, ge
   setCountry: async (country: string) => {
     set({ country });
     await AsyncStorage.setItem(COUNTRY_SETTINGS_KEY, country);
+  },
+
+  loadModel: async () => {
+    try {
+      const stored = await AsyncStorage.getItem(MODEL_SETTINGS_KEY);
+      if (stored && LLM_MODELS.some(m => m.value === stored)) {
+        set({ model: stored as LLMModel });
+      }
+    } catch (error) {
+      console.error('Failed to load model:', error);
+    }
+  },
+
+  setModel: async (model: LLMModel) => {
+    set({ model });
+    await AsyncStorage.setItem(MODEL_SETTINGS_KEY, model);
   },
 }));

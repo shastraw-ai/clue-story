@@ -2,8 +2,9 @@
 import { StoryGenerationParams, Kid, StoryStage, ProblemContent } from '../types';
 import { getGradeSystemNote } from '../constants/countries';
 
+import { LLMModel, DEFAULT_MODEL } from '../stores/settingsStore';
+
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const MODEL = 'gpt-4o-mini';
 
 // Debug flag - set to true to see logs
 const DEBUG = false;
@@ -240,7 +241,8 @@ Respond with JSON:
  */
 async function generateStoryNarrative(
   params: StoryGenerationParams,
-  apiKey: string
+  apiKey: string,
+  model: LLMModel = DEFAULT_MODEL
 ): Promise<string> {
   const prompt = buildStoryPrompt(params);
   debugLog('STORY PROMPT', prompt);
@@ -256,7 +258,7 @@ async function generateStoryNarrative(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
@@ -293,7 +295,8 @@ async function generatePuzzlesForKid(
   kid: Kid,
   count: number,
   apiKey: string,
-  country?: string
+  country?: string,
+  model: LLMModel = DEFAULT_MODEL
 ): Promise<Array<{ problem: string; solution: string }>> {
   const prompt = buildPuzzlePromptForKid(subject, kid, count, country);
   debugLog(`PUZZLE PROMPT FOR ${kid.alias}`, prompt);
@@ -305,7 +308,7 @@ async function generatePuzzlesForKid(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       messages: [
         { role: 'system', content: 'Generate educational puzzles for children. Respond only with valid JSON. Make problems appropriately challenging - do not make them too easy.' },
         { role: 'user', content: prompt },
@@ -337,13 +340,14 @@ async function generatePuzzlesForKid(
 async function generatePuzzles(
   params: StoryGenerationParams,
   apiKey: string,
-  country?: string
+  country?: string,
+  model: LLMModel = DEFAULT_MODEL
 ): Promise<PuzzlesByKid> {
   const { subject, questionsPerKid, kids } = params;
 
   // Make parallel API calls for each kid
   const puzzlePromises = kids.map(kid =>
-    generatePuzzlesForKid(subject, kid, questionsPerKid, apiKey, country)
+    generatePuzzlesForKid(subject, kid, questionsPerKid, apiKey, country, model)
       .then(problems => ({ alias: kid.alias, problems }))
   );
 
@@ -408,13 +412,14 @@ function combineStoryAndPuzzles(
 export async function generateStory(
   params: StoryGenerationParams,
   apiKey: string,
-  country?: string
+  country?: string,
+  model: LLMModel = DEFAULT_MODEL
 ): Promise<{ stages: StoryStage[]; rawResponse: string }> {
   // 1. Generate story narrative
-  const narrative = await generateStoryNarrative(params, apiKey);
+  const narrative = await generateStoryNarrative(params, apiKey, model);
 
   // 2. Generate puzzles for each kid
-  const puzzles = await generatePuzzles(params, apiKey, country);
+  const puzzles = await generatePuzzles(params, apiKey, country, model);
 
   // 3. Parse story into stages
   const stageContents = parseStoryIntoStages(narrative);

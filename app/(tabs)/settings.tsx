@@ -17,7 +17,7 @@ import {
 } from 'react-native-paper';
 import Slider from '@react-native-community/slider';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useSettingsStore } from '../../src/stores/settingsStore';
+import { useSettingsStore, LLM_MODELS } from '../../src/stores/settingsStore';
 import { useKidsStore } from '../../src/stores/kidsStore';
 import { Kid, Gender } from '../../src/types';
 import { GRADES, MAX_KIDS } from '../../src/constants/examples';
@@ -39,6 +39,8 @@ export default function SettingsScreen() {
     setNotificationTime,
     country,
     setCountry,
+    model,
+    setModel,
   } = useSettingsStore();
   const { kids, addKid, updateKid, deleteKid } = useKidsStore();
 
@@ -62,6 +64,9 @@ export default function SettingsScreen() {
 
   // Country picker modal
   const [countryModalVisible, setCountryModalVisible] = useState(false);
+
+  // Model picker modal
+  const [modelModalVisible, setModelModalVisible] = useState(false);
 
   const handleSaveApiKey = async () => {
     if (apiKeyInput.trim()) {
@@ -164,6 +169,12 @@ export default function SettingsScreen() {
     return found?.name || country;
   };
 
+  // Model helpers
+  const getModelDisplayName = (): string => {
+    const found = LLM_MODELS.find((m) => m.value === model);
+    return found?.label || model;
+  };
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -208,6 +219,26 @@ export default function SettingsScreen() {
               </Button>
             </View>
           )}
+        </Card.Content>
+      </Card>
+
+      {/* LLM Model Section */}
+      <Card style={styles.card}>
+        <Card.Title title="LLM Model" />
+        <Card.Content>
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}
+          >
+            Select the OpenAI model for story generation
+          </Text>
+          <Button
+            mode="outlined"
+            onPress={() => setModelModalVisible(true)}
+            style={styles.countryButton}
+          >
+            {getModelDisplayName()}
+          </Button>
         </Card.Content>
       </Card>
 
@@ -453,6 +484,35 @@ export default function SettingsScreen() {
                 style={styles.gradeItem}
               >
                 {c.name}
+              </Button>
+            ))}
+          </ScrollView>
+        </Modal>
+
+        {/* Model Picker Modal */}
+        <Modal
+          visible={modelModalVisible}
+          onDismiss={() => setModelModalVisible(false)}
+          contentContainerStyle={[
+            styles.gradeModal,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text variant="titleLarge" style={styles.modalTitle}>
+            Select LLM Model
+          </Text>
+          <ScrollView style={styles.gradeList}>
+            {LLM_MODELS.map((m) => (
+              <Button
+                key={m.value}
+                mode={model === m.value ? 'contained' : 'text'}
+                onPress={async () => {
+                  await setModel(m.value);
+                  setModelModalVisible(false);
+                }}
+                style={styles.gradeItem}
+              >
+                {m.label}
               </Button>
             ))}
           </ScrollView>

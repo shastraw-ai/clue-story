@@ -15,6 +15,7 @@ export default function RootLayout() {
   const checkApiKey = useSettingsStore((state) => state.checkApiKey);
   const loadNotificationSettings = useSettingsStore((state) => state.loadNotificationSettings);
   const loadCountry = useSettingsStore((state) => state.loadCountry);
+  const loadModel = useSettingsStore((state) => state.loadModel);
   const notificationSettings = useSettingsStore((state) => state.notificationSettings);
   const loadKids = useKidsStore((state) => state.loadKids);
   const loadStories = useStoriesStore((state) => state.loadStories);
@@ -26,6 +27,7 @@ export default function RootLayout() {
     loadStories();
     loadNotificationSettings();
     loadCountry();
+    loadModel();
   }, []);
 
   // Handle notification scheduling when settings change
