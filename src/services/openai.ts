@@ -112,7 +112,7 @@ function buildPlotPrompt(params: StoryGenerationParams): string {
   return `
 You are helping a parent tell a bedtime story.
 
-Create EXACTLY ${totalStages} stage outlines.
+Create EXACTLY ${totalStages} stage outlines. Each stage should lead naturally to the next.
 
 CHARACTERS: ${kidAliases}
 SETTING: ${theme}
@@ -122,17 +122,14 @@ For each stage, provide a BRIEF plot outline with these elements:
 - Setting/Location for this stage
 - What the children encounter (magical character, obstacle, discovery)
 - The challenge setup (what blocks their progress)
-- Mood/atmosphere hint
 
 FORMAT:
 === STAGE X ===
 • Setting: [where they are]
 • Encounter: [who/what they meet]
 • Challenge: [what blocks their progress]
-• Mood: [atmosphere - mysterious, exciting, cozy, etc.]
 
-Keep each stage to 4-5 lines maximum. Parents will improvise the full story.
-After stage ${totalStages}, add a brief conclusion outline.
+After stage ${totalStages}, add a brief conclusion.
 `.trim();
 }
 
