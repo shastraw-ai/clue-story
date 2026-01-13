@@ -263,7 +263,7 @@ async function generateStoryNarrative(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
       ],
-      max_completion_tokens: params.mode === 'plot' ? 1500 : 3000,
+      max_completion_tokens: params.mode === 'plot' ? 2500 : 5000,
     }),
   });
 
