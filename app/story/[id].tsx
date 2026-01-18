@@ -23,14 +23,28 @@ export default function StoryReaderScreen() {
 
   const [story, setStory] = useState<Story | null>(null);
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) {
-      const found = getStoryById(id);
-      if (found) {
+    const loadStory = async () => {
+      if (!id) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const found = await getStoryById(id);
         setStory(found);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load story';
+        setError(message);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+
+    loadStory();
   }, [id]);
 
   if (!story) {

@@ -1,116 +1,100 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
-import { Story, StoryStage, Kid, Subject } from '../types';
-
-const STORIES_STORAGE_KEY = 'clue_story_stories';
+import { Story, StoryListItem, StoryGenerationParams } from '../types';
+import { apiClient } from '../services/api';
 
 interface StoriesState {
-  stories: Story[];
+  stories: StoryListItem[];
   currentStory: Story | null;
   isLoading: boolean;
   isGenerating: boolean;
   error: string | null;
+  total: number;
 }
 
 interface StoriesActions {
   loadStories: () => Promise<void>;
-  addStory: (
-    title: string,
-    subject: Subject,
-    role: string,
-    theme: string,
-    kids: Kid[],
-    stages: StoryStage[],
-    rawResponse: string
-  ) => Promise<Story>;
+  generateStory: (params: StoryGenerationParams) => Promise<Story>;
+  getStoryById: (id: string) => Promise<Story>;
   deleteStory: (id: string) => Promise<void>;
   setCurrentStory: (story: Story | null) => void;
-  getStoryById: (id: string) => Story | undefined;
   setGenerating: (generating: boolean) => void;
   setError: (error: string | null) => void;
+  clearStories: () => void;
 }
 
 export const useStoriesStore = create<StoriesState & StoriesActions>((set, get) => ({
   stories: [],
   currentStory: null,
-  isLoading: true,
+  isLoading: false,
   isGenerating: false,
   error: null,
+  total: 0,
 
   loadStories: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
-      const stored = await AsyncStorage.getItem(STORIES_STORAGE_KEY);
-      if (stored) {
-        const stories = JSON.parse(stored) as Story[];
-        // Sort by date, newest first
-        stories.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        set({ stories, isLoading: false });
-      } else {
-        set({ stories: [], isLoading: false });
-      }
+      const { stories, total } = await apiClient.getStories();
+      set({ stories, total, isLoading: false });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load stories';
       console.error('Failed to load stories:', error);
-      set({ stories: [], isLoading: false });
+      set({ stories: [], total: 0, isLoading: false, error: message });
     }
   },
 
-  addStory: async (
-    title: string,
-    subject: Subject,
-    role: string,
-    theme: string,
-    kids: Kid[],
-    stages: StoryStage[],
-    rawResponse: string
-  ): Promise<Story> => {
-    const newStory: Story = {
-      id: Crypto.randomUUID(),
-      title,
-      subject,
-      role,
-      theme,
-      kids,
-      stages,
-      rawResponse,
-      createdAt: new Date().toISOString(),
-    };
-
-    const { stories } = get();
-    const updatedStories = [newStory, ...stories];
-    set({ stories: updatedStories, currentStory: newStory });
-
+  generateStory: async (params: StoryGenerationParams): Promise<Story> => {
+    set({ isGenerating: true, error: null });
     try {
-      await AsyncStorage.setItem(STORIES_STORAGE_KEY, JSON.stringify(updatedStories));
+      const story = await apiClient.generateStory(params);
+      set({ currentStory: story, isGenerating: false });
+
+      // Refresh stories list
+      get().loadStories();
+
+      return story;
     } catch (error) {
-      console.error('Failed to save stories:', error);
+      const message = error instanceof Error ? error.message : 'Failed to generate story';
+      set({ error: message, isGenerating: false });
+      throw error;
+    }
+  },
+
+  getStoryById: async (id: string): Promise<Story> => {
+    // Check if current story matches
+    const { currentStory } = get();
+    if (currentStory?.id === id) {
+      return currentStory;
     }
 
-    return newStory;
+    try {
+      const story = await apiClient.getStory(id);
+      set({ currentStory: story });
+      return story;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load story';
+      set({ error: message });
+      throw error;
+    }
   },
 
   deleteStory: async (id: string) => {
-    const { stories, currentStory } = get();
-    const updatedStories = stories.filter((story) => story.id !== id);
-    set({
-      stories: updatedStories,
-      currentStory: currentStory?.id === id ? null : currentStory,
-    });
-
+    set({ error: null });
     try {
-      await AsyncStorage.setItem(STORIES_STORAGE_KEY, JSON.stringify(updatedStories));
+      await apiClient.deleteStory(id);
+      set((state) => ({
+        stories: state.stories.filter((story) => story.id !== id),
+        currentStory: state.currentStory?.id === id ? null : state.currentStory,
+        total: state.total - 1,
+      }));
     } catch (error) {
-      console.error('Failed to save stories:', error);
+      const message = error instanceof Error ? error.message : 'Failed to delete story';
+      set({ error: message });
+      throw error;
     }
   },
 
   setCurrentStory: (story: Story | null) => {
     set({ currentStory: story });
-  },
-
-  getStoryById: (id: string): Story | undefined => {
-    return get().stories.find((story) => story.id === id);
   },
 
   setGenerating: (generating: boolean) => {
@@ -119,5 +103,9 @@ export const useStoriesStore = create<StoriesState & StoriesActions>((set, get) 
 
   setError: (error: string | null) => {
     set({ error });
+  },
+
+  clearStories: () => {
+    set({ stories: [], currentStory: null, total: 0, error: null });
   },
 }));

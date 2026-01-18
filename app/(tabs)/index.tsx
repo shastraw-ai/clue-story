@@ -14,24 +14,20 @@ import {
 } from 'react-native-paper';
 import Slider from '@react-native-community/slider';
 import { router } from 'expo-router';
-import { useSettingsStore } from '../../src/stores/settingsStore';
 import { useKidsStore } from '../../src/stores/kidsStore';
 import { useStoriesStore } from '../../src/stores/storiesStore';
-import { Subject, Kid, StoryMode } from '../../src/types';
+import { Subject, StoryMode } from '../../src/types';
 import {
   SUBJECTS,
   EXAMPLE_THEMES,
   EXAMPLE_ROLES,
   MAX_QUESTIONS_PER_KID,
 } from '../../src/constants/examples';
-import { generateStory } from '../../src/services/openai';
-import { generateStoryTitle } from '../../src/services/storyParser';
 
 export default function CreateStoryScreen() {
   const theme = useTheme();
-  const { hasApiKey, getApiKey, country, model } = useSettingsStore();
   const { kids } = useKidsStore();
-  const { addStory, isGenerating, setGenerating, error, setError } = useStoriesStore();
+  const { generateStory, isGenerating, error, setError } = useStoriesStore();
 
   const [mode, setMode] = useState<StoryMode>('plot');
   const [subject, setSubject] = useState<Subject>('math');
@@ -56,7 +52,6 @@ export default function CreateStoryScreen() {
   const selectedKids = kids.filter((kid) => selectedKidIds.includes(kid.id));
 
   const canGenerate =
-    hasApiKey &&
     selectedKids.length > 0 &&
     role.trim() &&
     storyTheme.trim() &&
@@ -65,48 +60,23 @@ export default function CreateStoryScreen() {
   const handleGenerate = async () => {
     if (!canGenerate) return;
 
-    setGenerating(true);
     setError(null);
 
     try {
-      const apiKey = await getApiKey();
-      if (!apiKey) {
-        throw new Error('API key not found');
-      }
-
-      const { stages, rawResponse } = await generateStory(
-        {
-          subject,
-          role: role.trim(),
-          theme: storyTheme.trim(),
-          questionsPerKid,
-          kids: selectedKids,
-          mode,
-        },
-        apiKey,
-        country || undefined,
-        model
-      );
-
-      const title = generateStoryTitle(storyTheme.trim(), role.trim());
-
-      const story = await addStory(
-        title,
+      const story = await generateStory({
         subject,
-        role.trim(),
-        storyTheme.trim(),
-        selectedKids,
-        stages,
-        rawResponse
-      );
+        role: role.trim(),
+        theme: storyTheme.trim(),
+        questionsPerKid,
+        kids: selectedKids,
+        mode,
+      });
 
       // Navigate to story reader
       router.push(`/story/${story.id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to generate story';
       setError(message);
-    } finally {
-      setGenerating(false);
     }
   };
 
@@ -118,24 +88,17 @@ export default function CreateStoryScreen() {
     }
   };
 
-  // Show setup required message
-  if (!hasApiKey || kids.length === 0) {
+  // Show setup required message if no kids
+  if (kids.length === 0) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
         <Surface style={styles.setupCard} elevation={2}>
           <Text variant="headlineSmall" style={styles.setupTitle}>
             Setup Required
           </Text>
-          {!hasApiKey && (
-            <Text variant="bodyMedium" style={styles.setupText}>
-              Please add your OpenAI API key in Settings.
-            </Text>
-          )}
-          {kids.length === 0 && (
-            <Text variant="bodyMedium" style={styles.setupText}>
-              Please add at least one kid in Settings.
-            </Text>
-          )}
+          <Text variant="bodyMedium" style={styles.setupText}>
+            Please add at least one kid in Settings to get started.
+          </Text>
           <Button
             mode="contained"
             onPress={() => router.push('/(tabs)/settings')}

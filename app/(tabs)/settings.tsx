@@ -8,18 +8,19 @@ import {
   useTheme,
   Portal,
   Modal,
-  SegmentedButtons,
   IconButton,
   Divider,
   Surface,
   Switch,
   TouchableRipple,
+  Avatar,
 } from 'react-native-paper';
 import Slider from '@react-native-community/slider';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSettingsStore, LLM_MODELS } from '../../src/stores/settingsStore';
 import { useKidsStore } from '../../src/stores/kidsStore';
-import { Kid, Gender } from '../../src/types';
+import { useAuthStore } from '../../src/stores/authStore';
+import { Kid } from '../../src/types';
 import { GRADES, MAX_KIDS } from '../../src/constants/examples';
 import { COUNTRIES, getCountryByCode } from '../../src/constants/countries';
 import {
@@ -30,10 +31,8 @@ import {
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const { user, signOut } = useAuthStore();
   const {
-    hasApiKey,
-    setApiKey,
-    deleteApiKey,
     notificationSettings,
     setNotificationEnabled,
     setNotificationTime,
@@ -44,17 +43,13 @@ export default function SettingsScreen() {
   } = useSettingsStore();
   const { kids, addKid, updateKid, deleteKid } = useKidsStore();
 
-  // API Key state
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
-
   // Kid modal state
   const [kidModalVisible, setKidModalVisible] = useState(false);
   const [editingKid, setEditingKid] = useState<Kid | null>(null);
   const [kidName, setKidName] = useState('');
   const [kidGrade, setKidGrade] = useState('K');
-  const [kidGender, setKidGender] = useState<Gender>('boy');
   const [kidDifficulty, setKidDifficulty] = useState(3);
+  const [isSavingKid, setIsSavingKid] = useState(false);
 
   // Grade picker modal
   const [gradeModalVisible, setGradeModalVisible] = useState(false);
@@ -68,22 +63,10 @@ export default function SettingsScreen() {
   // Model picker modal
   const [modelModalVisible, setModelModalVisible] = useState(false);
 
-  const handleSaveApiKey = async () => {
-    if (apiKeyInput.trim()) {
-      await setApiKey(apiKeyInput.trim());
-      setApiKeyInput('');
-    }
-  };
-
-  const handleDeleteApiKey = async () => {
-    await deleteApiKey();
-  };
-
   const openAddKidModal = () => {
     setEditingKid(null);
     setKidName('');
     setKidGrade('K');
-    setKidGender('boy');
     setKidDifficulty(3);
     setKidModalVisible(true);
   };
@@ -92,7 +75,6 @@ export default function SettingsScreen() {
     setEditingKid(kid);
     setKidName(kid.name);
     setKidGrade(kid.grade);
-    setKidGender(kid.gender);
     setKidDifficulty(kid.difficultyLevel);
     setKidModalVisible(true);
   };
@@ -100,22 +82,38 @@ export default function SettingsScreen() {
   const handleSaveKid = async () => {
     if (!kidName.trim()) return;
 
-    if (editingKid) {
-      await updateKid(editingKid.id, {
-        name: kidName.trim(),
-        grade: kidGrade,
-        gender: kidGender,
-        difficultyLevel: kidDifficulty,
-      });
-    } else {
-      await addKid(kidName.trim(), kidGrade, kidGender, kidDifficulty);
+    setIsSavingKid(true);
+    try {
+      if (editingKid) {
+        await updateKid(editingKid.id, {
+          name: kidName.trim(),
+          grade: kidGrade,
+          difficultyLevel: kidDifficulty,
+        });
+      } else {
+        await addKid(kidName.trim(), kidGrade, kidDifficulty);
+      }
+      setKidModalVisible(false);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save kid');
+    } finally {
+      setIsSavingKid(false);
     }
-
-    setKidModalVisible(false);
   };
 
   const handleDeleteKid = async (id: string) => {
-    await deleteKid(id);
+    try {
+      await deleteKid(id);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete kid');
+    }
+  };
+
+  const handleSignOut = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: signOut },
+    ]);
   };
 
   const getGradeLabel = (value: string) => {
@@ -180,45 +178,31 @@ export default function SettingsScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       contentContainerStyle={styles.content}
     >
-      {/* API Key Section */}
+      {/* Account Section */}
       <Card style={styles.card}>
-        <Card.Title title="OpenAI API Key" />
+        <Card.Title title="Account" />
         <Card.Content>
-          {hasApiKey ? (
-            <View style={styles.apiKeyContainer}>
-              <Text variant="bodyMedium" style={{ color: theme.colors.primary }}>
-                API Key is configured
+          <View style={styles.accountRow}>
+            {user?.pictureUrl ? (
+              <Avatar.Image size={48} source={{ uri: user.pictureUrl }} />
+            ) : (
+              <Avatar.Icon size={48} icon="account" />
+            )}
+            <View style={styles.accountInfo}>
+              <Text variant="titleMedium">{user?.name || 'User'}</Text>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                {user?.email}
               </Text>
-              <Button mode="outlined" onPress={handleDeleteApiKey} style={styles.button}>
-                Remove Key
-              </Button>
             </View>
-          ) : (
-            <View>
-              <TextInput
-                mode="outlined"
-                label="Enter API Key"
-                value={apiKeyInput}
-                onChangeText={setApiKeyInput}
-                secureTextEntry={!showApiKey}
-                right={
-                  <TextInput.Icon
-                    icon={showApiKey ? 'eye-off' : 'eye'}
-                    onPress={() => setShowApiKey(!showApiKey)}
-                  />
-                }
-                style={styles.input}
-              />
-              <Button
-                mode="contained"
-                onPress={handleSaveApiKey}
-                disabled={!apiKeyInput.trim()}
-                style={styles.button}
-              >
-                Save API Key
-              </Button>
-            </View>
-          )}
+          </View>
+          <Button
+            mode="outlined"
+            onPress={handleSignOut}
+            style={styles.signOutButton}
+            icon="logout"
+          >
+            Sign Out
+          </Button>
         </Card.Content>
       </Card>
 
@@ -335,8 +319,7 @@ export default function SettingsScreen() {
                 <View style={styles.kidInfo}>
                   <Text variant="titleMedium">{kid.name}</Text>
                   <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                    {getGradeLabel(kid.grade)} | {kid.gender === 'boy' ? 'Boy' : 'Girl'} |
-                    Difficulty: {kid.difficultyLevel}/5
+                    {getGradeLabel(kid.grade)} | Difficulty: {kid.difficultyLevel}/5
                   </Text>
                   <Text variant="bodySmall" style={{ color: theme.colors.primary }}>
                     Story alias: {kid.alias}
@@ -379,19 +362,6 @@ export default function SettingsScreen() {
           />
 
           <Text variant="labelLarge" style={styles.label}>
-            Gender
-          </Text>
-          <SegmentedButtons
-            value={kidGender}
-            onValueChange={(value) => setKidGender(value as Gender)}
-            buttons={[
-              { value: 'boy', label: 'Boy' },
-              { value: 'girl', label: 'Girl' },
-            ]}
-            style={styles.segmentedButtons}
-          />
-
-          <Text variant="labelLarge" style={styles.label}>
             Grade
           </Text>
           <Button
@@ -425,7 +395,12 @@ export default function SettingsScreen() {
 
           <View style={styles.modalActions}>
             <Button onPress={() => setKidModalVisible(false)}>Cancel</Button>
-            <Button mode="contained" onPress={handleSaveKid} disabled={!kidName.trim()}>
+            <Button
+              mode="contained"
+              onPress={handleSaveKid}
+              disabled={!kidName.trim() || isSavingKid}
+              loading={isSavingKid}
+            >
               Save
             </Button>
           </View>
@@ -533,14 +508,20 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
   },
-  apiKeyContainer: {
-    gap: 12,
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  signOutButton: {
+    marginTop: 8,
   },
   input: {
     marginBottom: 12,
-  },
-  button: {
-    marginTop: 8,
   },
   notificationRow: {
     flexDirection: 'row',
@@ -590,9 +571,6 @@ const styles = StyleSheet.create({
   },
   label: {
     marginTop: 16,
-    marginBottom: 8,
-  },
-  segmentedButtons: {
     marginBottom: 8,
   },
   gradeButton: {

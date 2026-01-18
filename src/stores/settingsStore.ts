@@ -1,12 +1,8 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { detectCountry } from '../utils/locale';
+import { apiClient } from '../services/api';
 
-const API_KEY_STORAGE = 'openai_api_key';
 const NOTIFICATION_SETTINGS_KEY = 'notification_settings';
-const COUNTRY_SETTINGS_KEY = 'country_settings';
-const MODEL_SETTINGS_KEY = 'llm_model';
 
 export const LLM_MODELS = [
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
@@ -16,7 +12,7 @@ export const LLM_MODELS = [
   { value: 'gpt-5', label: 'GPT-5' },
 ] as const;
 
-export type LLMModel = typeof LLM_MODELS[number]['value'];
+export type LLMModel = (typeof LLM_MODELS)[number]['value'];
 export const DEFAULT_MODEL: LLMModel = 'gpt-4o-mini';
 
 export interface NotificationTime {
@@ -35,52 +31,44 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 };
 
 interface SettingsState {
-  hasApiKey: boolean;
   isLoading: boolean;
   notificationSettings: NotificationSettings;
-  country: string | null;
+  country: string;
   model: LLMModel;
+  error: string | null;
 }
 
 interface SettingsActions {
-  setApiKey: (key: string) => Promise<void>;
-  getApiKey: () => Promise<string | null>;
-  deleteApiKey: () => Promise<void>;
-  checkApiKey: () => Promise<void>;
+  loadSettings: () => Promise<void>;
   loadNotificationSettings: () => Promise<void>;
   setNotificationEnabled: (enabled: boolean) => Promise<void>;
   setNotificationTime: (time: NotificationTime) => Promise<void>;
-  loadCountry: () => Promise<void>;
   setCountry: (country: string) => Promise<void>;
-  loadModel: () => Promise<void>;
   setModel: (model: LLMModel) => Promise<void>;
+  clearSettings: () => void;
 }
 
 export const useSettingsStore = create<SettingsState & SettingsActions>((set, get) => ({
-  hasApiKey: false,
-  isLoading: true,
+  isLoading: false,
   notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
-  country: null,
+  country: 'US',
   model: DEFAULT_MODEL,
+  error: null,
 
-  setApiKey: async (key: string) => {
-    await SecureStore.setItemAsync(API_KEY_STORAGE, key);
-    set({ hasApiKey: true });
-  },
-
-  getApiKey: async (): Promise<string | null> => {
-    return await SecureStore.getItemAsync(API_KEY_STORAGE);
-  },
-
-  deleteApiKey: async () => {
-    await SecureStore.deleteItemAsync(API_KEY_STORAGE);
-    set({ hasApiKey: false });
-  },
-
-  checkApiKey: async () => {
-    set({ isLoading: true });
-    const key = await SecureStore.getItemAsync(API_KEY_STORAGE);
-    set({ hasApiKey: !!key, isLoading: false });
+  loadSettings: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const settings = await apiClient.getSettings();
+      set({
+        country: settings.country,
+        model: settings.preferredModel as LLMModel,
+        isLoading: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load settings';
+      console.error('Failed to load settings:', error);
+      set({ isLoading: false, error: message });
+    }
   },
 
   loadNotificationSettings: async () => {
@@ -109,42 +97,36 @@ export const useSettingsStore = create<SettingsState & SettingsActions>((set, ge
     await AsyncStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(updated));
   },
 
-  loadCountry: async () => {
-    try {
-      const stored = await AsyncStorage.getItem(COUNTRY_SETTINGS_KEY);
-      if (stored) {
-        set({ country: stored });
-      } else {
-        // Auto-detect on first load
-        const detected = detectCountry();
-        if (detected) {
-          set({ country: detected });
-          await AsyncStorage.setItem(COUNTRY_SETTINGS_KEY, detected);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load country:', error);
-    }
-  },
-
   setCountry: async (country: string) => {
-    set({ country });
-    await AsyncStorage.setItem(COUNTRY_SETTINGS_KEY, country);
-  },
-
-  loadModel: async () => {
+    set({ error: null });
     try {
-      const stored = await AsyncStorage.getItem(MODEL_SETTINGS_KEY);
-      if (stored && LLM_MODELS.some(m => m.value === stored)) {
-        set({ model: stored as LLMModel });
-      }
+      await apiClient.updateSettings({ country });
+      set({ country });
     } catch (error) {
-      console.error('Failed to load model:', error);
+      const message = error instanceof Error ? error.message : 'Failed to update country';
+      set({ error: message });
+      throw error;
     }
   },
 
   setModel: async (model: LLMModel) => {
-    set({ model });
-    await AsyncStorage.setItem(MODEL_SETTINGS_KEY, model);
+    set({ error: null });
+    try {
+      await apiClient.updateSettings({ preferredModel: model });
+      set({ model });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update model';
+      set({ error: message });
+      throw error;
+    }
+  },
+
+  clearSettings: () => {
+    set({
+      notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
+      country: 'US',
+      model: DEFAULT_MODEL,
+      error: null,
+    });
   },
 }));
