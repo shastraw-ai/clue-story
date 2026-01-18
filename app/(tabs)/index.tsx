@@ -65,11 +65,11 @@ export default function CreateStoryScreen() {
     try {
       const story = await generateStory({
         subject,
+        mode,
         role: role.trim(),
         theme: storyTheme.trim(),
         questionsPerKid,
-        kids: selectedKids,
-        mode,
+        kidIds: selectedKidIds,
       });
 
       // Navigate to story reader

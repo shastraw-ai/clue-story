@@ -12,13 +12,14 @@ export function parseStoryResponse(rawResponse: string, kids: Kid[]): StoryStage
   if (stageParts.length === 0) {
     return [
       {
+        stageNumber: 1,
         content: rawResponse,
         problems: [],
       },
     ];
   }
 
-  return stageParts.map((stagePart) => {
+  return stageParts.map((stagePart, index) => {
     const problems: ProblemContent[] = [];
 
     // Extract ALL PROBLEM tags with their SOLUTION tags
@@ -45,6 +46,7 @@ export function parseStoryResponse(rawResponse: string, kids: Kid[]): StoryStage
       .trim();
 
     return {
+      stageNumber: index + 1,
       content,
       problems,
     };

@@ -10,7 +10,7 @@ import {
 } from 'react-native-paper';
 import { router } from 'expo-router';
 import { useStoriesStore } from '../../src/stores/storiesStore';
-import { Story } from '../../src/types';
+import { StoryListItem } from '../../src/types';
 
 export default function HistoryScreen() {
   const theme = useTheme();
@@ -27,7 +27,7 @@ export default function HistoryScreen() {
     });
   };
 
-  const handleOpenStory = (story: Story) => {
+  const handleOpenStory = (story: StoryListItem) => {
     router.push(`/story/${story.id}`);
   };
 
@@ -92,17 +92,17 @@ export default function HistoryScreen() {
                 {story.subject === 'math' ? 'Math' : 'Reading'}
               </Chip>
               <Chip icon="account-group" style={styles.chip} compact>
-                {story.kids.length} {story.kids.length === 1 ? 'kid' : 'kids'}
+                {story.numKids} {story.numKids === 1 ? 'kid' : 'kids'}
               </Chip>
               <Chip icon="puzzle" style={styles.chip} compact>
-                {story.stages.length} {story.stages.length === 1 ? 'stage' : 'stages'}
+                {story.numStages} {story.numStages === 1 ? 'stage' : 'stages'}
               </Chip>
             </View>
             <Text
               variant="bodySmall"
               style={[styles.kidsText, { color: theme.colors.onSurfaceVariant }]}
             >
-              {story.kids.map((k) => k.name).join(', ')}
+              {story.kidNames.join(', ')}
             </Text>
           </Card.Content>
         </Card>

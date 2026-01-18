@@ -47,10 +47,23 @@ export default function StoryReaderScreen() {
     loadStory();
   }, [id]);
 
-  if (!story) {
+  if (loading) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (error || !story) {
+    return (
+      <View style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
+        <Text variant="bodyLarge" style={{ color: theme.colors.error, textAlign: 'center', padding: 20 }}>
+          {error || 'Story not found'}
+        </Text>
+        <Button mode="contained" onPress={() => router.back()}>
+          Go Back
+        </Button>
       </View>
     );
   }
