@@ -149,8 +149,9 @@ export default function CreateStoryScreen() {
   }
 
   return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={styles.scrollView}
       contentContainerStyle={styles.content}
     >
       {/* Mode Selection */}
@@ -326,12 +327,32 @@ export default function CreateStoryScreen() {
           Creating your story... This may take a minute.
         </Text>
       )}
-    </ScrollView>
+
+      </ScrollView>
+
+      {/* Full screen loading overlay */}
+      {isGenerating && (
+        <View style={[styles.loadingOverlay, { backgroundColor: theme.colors.backdrop }]}>
+          <Surface style={styles.loadingCard} elevation={4}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text variant="titleMedium" style={styles.loadingTitle}>
+              Generating Story
+            </Text>
+            <Text variant="bodyMedium" style={styles.loadingText}>
+              Creating an adventure for {selectedKids.map(k => k.name).join(', ')}...
+            </Text>
+          </Surface>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   content: {
@@ -417,5 +438,29 @@ const styles = StyleSheet.create({
   generatingText: {
     textAlign: 'center',
     marginTop: 12,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingCard: {
+    padding: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    maxWidth: 280,
+  },
+  loadingTitle: {
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  loadingText: {
+    marginTop: 8,
+    textAlign: 'center',
+    opacity: 0.7,
   },
 });

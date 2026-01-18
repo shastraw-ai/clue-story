@@ -187,7 +187,7 @@ function buildStoryPrompt(params: StoryGenerationParams): string {
 /**
  * Build puzzle prompt for a single kid
  */
-function buildPuzzlePromptForKid(subject: string, kid: Kid, count: number, country?: string): string {
+function buildPuzzlePromptForKid(subject: string, kid: Kid, allKids: Kid[], count: number, country?: string): string {
   const subjectType = subject === 'math' ? 'math word problems' : 'reading/language problems';
   const mathConcepts = subject === 'math' ? getMathConceptsForGrade(kid.grade) : '';
 
@@ -196,10 +196,17 @@ function buildPuzzlePromptForKid(subject: string, kid: Kid, count: number, count
     ? `\nNOTE: This child is in the ${getGradeSystemNote(country)}. Adjust problem context appropriately.`
     : '';
 
+  // Build name instruction based on number of kids
+  const otherKids = allKids.filter(k => k.alias !== kid.alias);
+  const nameInstruction = otherKids.length > 0
+    ? `- IMPORTANT: Use "${kid.alias}" as the main character in the problems. You may also include other children: ${otherKids.map(k => k.alias).join(', ')} to make problems more social/interactive (e.g., "${kid.alias} and ${otherKids[0].alias} are sharing cookies...")`
+    : `- IMPORTANT: Use the child's name "${kid.alias}" in the problems to make them personal (e.g., "${kid.alias} has 5 apples...")`;
+
   return `
-Generate ${count} ${subjectType} for a child.
+Generate ${count} ${subjectType} for a child named ${kid.alias}.
 
 CHILD INFO:
+- Name: ${kid.alias}
 - Grade: ${kid.grade}
 - Difficulty: ${kid.difficultyLevel}/5
 ${countryContext}
@@ -217,6 +224,7 @@ ${mathConcepts}
 
 CRITICAL REQUIREMENTS:
 - All problems must be WORD PROBLEMS with a fun, engaging story context
+${nameInstruction}
 - Do NOT use raw arithmetic like "5+3=" or "342+89"
 - Problems should feel like mini-adventures or puzzles within a story
 - Each problem should be different and creative
@@ -290,12 +298,13 @@ type PuzzlesByKid = Record<string, Array<{ problem: string; solution: string }>>
 async function generatePuzzlesForKid(
   subject: string,
   kid: Kid,
+  allKids: Kid[],
   count: number,
   apiKey: string,
   country?: string,
   model: LLMModel = DEFAULT_MODEL
 ): Promise<Array<{ problem: string; solution: string }>> {
-  const prompt = buildPuzzlePromptForKid(subject, kid, count, country);
+  const prompt = buildPuzzlePromptForKid(subject, kid, allKids, count, country);
   debugLog(`PUZZLE PROMPT FOR ${kid.alias}`, prompt);
 
   const response = await fetch(OPENAI_API_URL, {
@@ -344,7 +353,7 @@ async function generatePuzzles(
 
   // Make parallel API calls for each kid
   const puzzlePromises = kids.map(kid =>
-    generatePuzzlesForKid(subject, kid, questionsPerKid, apiKey, country, model)
+    generatePuzzlesForKid(subject, kid, kids, questionsPerKid, apiKey, country, model)
       .then(problems => ({ alias: kid.alias, problems }))
   );
 
