@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import {
   Kid,
   Story,
@@ -9,8 +10,16 @@ import {
 } from '../types';
 
 // Configure this for your backend URL
+// Android emulator uses 10.0.2.2 to access host localhost
+const getDevApiUrl = () => {
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:8000/api';
+  }
+  return 'http://localhost:8000/api';
+};
+
 const API_BASE_URL = __DEV__
-  ? 'http://localhost:8000/api'
+  ? getDevApiUrl()
   : 'https://your-production-url.com/api';
 
 class ApiClient {
@@ -79,6 +88,38 @@ class ApiClient {
     }>('/auth/google', {
       method: 'POST',
       body: JSON.stringify({ id_token: idToken }),
+    });
+
+    return {
+      accessToken: response.access_token,
+      tokenType: response.token_type,
+      user: {
+        id: response.user.id,
+        email: response.user.email,
+        name: response.user.name,
+        pictureUrl: response.user.picture_url,
+        country: response.user.country,
+        preferredModel: response.user.preferred_model,
+        createdAt: response.user.created_at,
+      },
+    };
+  }
+
+  async devLogin(): Promise<AuthResponse> {
+    const response = await this.request<{
+      access_token: string;
+      token_type: string;
+      user: {
+        id: string;
+        email: string;
+        name: string | null;
+        picture_url: string | null;
+        country: string;
+        preferred_model: string;
+        created_at: string;
+      };
+    }>('/auth/dev-login', {
+      method: 'POST',
     });
 
     return {

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # App
     debug: bool = False
 
+    # Dev-only: Bypass Google OAuth for local testing
+    dev_auth_bypass: bool = False
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

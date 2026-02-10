@@ -180,3 +180,4 @@ async def delete_kid(
         )
 
     await db.delete(kid)
+    await db.commit()

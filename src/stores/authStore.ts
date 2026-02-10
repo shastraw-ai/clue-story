@@ -26,6 +26,7 @@ interface AuthState {
 interface AuthActions {
   loadStoredAuth: () => Promise<void>;
   signInWithGoogle: (idToken: string) => Promise<void>;
+  devSignIn: () => Promise<void>;
   signOut: () => Promise<void>;
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -95,6 +96,29 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Authentication failed';
+      set({ error: message, isLoading: false });
+      throw error;
+    }
+  },
+
+  devSignIn: async () => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const authResponse = await apiClient.devLogin();
+
+      // Store token
+      await SecureStore.setItemAsync(TOKEN_KEY, authResponse.accessToken);
+      apiClient.setToken(authResponse.accessToken);
+
+      set({
+        user: authResponse.user,
+        token: authResponse.accessToken,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Dev login failed';
       set({ error: message, isLoading: false });
       throw error;
     }

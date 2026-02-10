@@ -468,3 +468,4 @@ async def delete_story(
         )
 
     await db.delete(story)
+    await db.commit()

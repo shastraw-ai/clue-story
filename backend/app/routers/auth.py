@@ -7,6 +7,7 @@ from app.models.user import User
 from app.schemas.auth import GoogleAuthRequest, TokenResponse, UserResponse
 from app.services.auth_service import auth_service
 from app.middleware.auth_middleware import get_current_user
+from app.config import get_settings
 
 router = APIRouter()
 
@@ -70,3 +71,47 @@ async def get_me(
     Get the current authenticated user.
     """
     return UserResponse.model_validate(current_user)
+
+
+@router.post("/dev-login", response_model=TokenResponse)
+async def dev_login(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Development-only login endpoint.
+    Creates/finds a deterministic dev user and returns a JWT token.
+    Only available when DEV_AUTH_BYPASS=true.
+    """
+    settings = get_settings()
+    if not settings.dev_auth_bypass:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    dev_email = "dev@cluestory.local"
+    dev_google_id = "dev-google-id-12345"
+
+    # Check if dev user exists
+    result = await db.execute(
+        select(User).where(User.google_id == dev_google_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        # Create dev user
+        user = User(
+            google_id=dev_google_id,
+            email=dev_email,
+            name="Dev User",
+            picture_url=None,
+        )
+        db.add(user)
+        await db.flush()
+        await db.commit()
+        await db.refresh(user)
+
+    # Create access token
+    access_token = auth_service.create_access_token(user.id, user.email)
+
+    return TokenResponse(
+        access_token=access_token,
+        user=UserResponse.model_validate(user),
+    )

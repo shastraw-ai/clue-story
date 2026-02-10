@@ -14,7 +14,7 @@ const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_I
 
 export default function LoginScreen() {
   const theme = useTheme();
-  const { signInWithGoogle, isLoading, error, clearError } = useAuthStore();
+  const { signInWithGoogle, devSignIn, isLoading, error, clearError } = useAuthStore();
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -46,6 +46,17 @@ export default function LoginScreen() {
   const handlePress = () => {
     clearError();
     promptAsync();
+  };
+
+  const handleDevLogin = async () => {
+    setIsSigningIn(true);
+    try {
+      await devSignIn();
+    } catch (err) {
+      // Error is handled by the store
+    } finally {
+      setIsSigningIn(false);
+    }
   };
 
   const showLoading = isLoading || isSigningIn;
@@ -85,6 +96,19 @@ export default function LoginScreen() {
             'Sign in with Google'
           )}
         </Button>
+
+        {__DEV__ && (
+          <Button
+            mode="outlined"
+            onPress={handleDevLogin}
+            disabled={showLoading}
+            style={styles.button}
+            contentStyle={styles.buttonContent}
+            icon="developer-board"
+          >
+            Dev Login
+          </Button>
+        )}
 
         <Text variant="bodySmall" style={[styles.terms, { color: theme.colors.onSurfaceVariant }]}>
           By signing in, you agree to our Terms of Service and Privacy Policy
