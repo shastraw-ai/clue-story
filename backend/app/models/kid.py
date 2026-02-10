@@ -11,7 +11,6 @@ class Kid(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
     grade: Mapped[str] = mapped_column(String(10), nullable=False)  # 'K', '1', '2', ... '12'
     difficulty_level: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
     alias: Mapped[str] = mapped_column(String(50), nullable=False)

@@ -89,7 +89,6 @@ async def create_kid(
     # Create kid
     kid = Kid(
         user_id=current_user.id,
-        name=request.name,
         grade=request.grade,
         difficulty_level=request.difficulty_level,
         alias=alias,
@@ -146,8 +145,6 @@ async def update_kid(
         )
 
     # Update fields if provided
-    if request.name is not None:
-        kid.name = request.name
     if request.grade is not None:
         kid.grade = request.grade
     if request.difficulty_level is not None:

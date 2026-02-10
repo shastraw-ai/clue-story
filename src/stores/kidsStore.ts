@@ -10,8 +10,8 @@ interface KidsState {
 
 interface KidsActions {
   loadKids: () => Promise<void>;
-  addKid: (name: string, grade: string, difficultyLevel: number) => Promise<Kid>;
-  updateKid: (id: string, updates: Partial<{ name: string; grade: string; difficultyLevel: number }>) => Promise<void>;
+  addKid: (grade: string, difficultyLevel: number) => Promise<Kid>;
+  updateKid: (id: string, updates: Partial<{ grade: string; difficultyLevel: number }>) => Promise<void>;
   deleteKid: (id: string) => Promise<void>;
   clearKids: () => void;
 }
@@ -34,13 +34,12 @@ export const useKidsStore = create<KidsState & KidsActions>((set, get) => ({
   },
 
   addKid: async (
-    name: string,
     grade: string,
     difficultyLevel: number
   ): Promise<Kid> => {
     set({ error: null });
     try {
-      const newKid = await apiClient.createKid({ name, grade, difficultyLevel });
+      const newKid = await apiClient.createKid({ grade, difficultyLevel });
       set((state) => ({ kids: [...state.kids, newKid] }));
       return newKid;
     } catch (error) {
@@ -52,7 +51,7 @@ export const useKidsStore = create<KidsState & KidsActions>((set, get) => ({
 
   updateKid: async (
     id: string,
-    updates: Partial<{ name: string; grade: string; difficultyLevel: number }>
+    updates: Partial<{ grade: string; difficultyLevel: number }>
   ) => {
     set({ error: null });
     try {

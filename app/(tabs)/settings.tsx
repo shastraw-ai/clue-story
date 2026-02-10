@@ -46,7 +46,6 @@ export default function SettingsScreen() {
   // Kid modal state
   const [kidModalVisible, setKidModalVisible] = useState(false);
   const [editingKid, setEditingKid] = useState<Kid | null>(null);
-  const [kidName, setKidName] = useState('');
   const [kidGrade, setKidGrade] = useState('K');
   const [kidDifficulty, setKidDifficulty] = useState(3);
   const [isSavingKid, setIsSavingKid] = useState(false);
@@ -65,7 +64,6 @@ export default function SettingsScreen() {
 
   const openAddKidModal = () => {
     setEditingKid(null);
-    setKidName('');
     setKidGrade('K');
     setKidDifficulty(3);
     setKidModalVisible(true);
@@ -73,25 +71,21 @@ export default function SettingsScreen() {
 
   const openEditKidModal = (kid: Kid) => {
     setEditingKid(kid);
-    setKidName(kid.name);
     setKidGrade(kid.grade);
     setKidDifficulty(kid.difficultyLevel);
     setKidModalVisible(true);
   };
 
   const handleSaveKid = async () => {
-    if (!kidName.trim()) return;
-
     setIsSavingKid(true);
     try {
       if (editingKid) {
         await updateKid(editingKid.id, {
-          name: kidName.trim(),
           grade: kidGrade,
           difficultyLevel: kidDifficulty,
         });
       } else {
-        await addKid(kidName.trim(), kidGrade, kidDifficulty);
+        await addKid(kidGrade, kidDifficulty);
       }
       setKidModalVisible(false);
     } catch (error) {
@@ -317,12 +311,9 @@ export default function SettingsScreen() {
             kids.map((kid) => (
               <Surface key={kid.id} style={styles.kidCard} elevation={1}>
                 <View style={styles.kidInfo}>
-                  <Text variant="titleMedium">{kid.name}</Text>
+                  <Text variant="titleMedium">{kid.alias}</Text>
                   <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                     {getGradeLabel(kid.grade)} | Difficulty: {kid.difficultyLevel}/5
-                  </Text>
-                  <Text variant="bodySmall" style={{ color: theme.colors.primary }}>
-                    Story alias: {kid.alias}
                   </Text>
                 </View>
                 <View style={styles.kidActions}>
@@ -352,14 +343,6 @@ export default function SettingsScreen() {
           <Text variant="titleLarge" style={styles.modalTitle}>
             {editingKid ? 'Edit Kid' : 'Add Kid'}
           </Text>
-
-          <TextInput
-            mode="outlined"
-            label="Name"
-            value={kidName}
-            onChangeText={setKidName}
-            style={styles.input}
-          />
 
           <Text variant="labelLarge" style={styles.label}>
             Grade
@@ -398,7 +381,7 @@ export default function SettingsScreen() {
             <Button
               mode="contained"
               onPress={handleSaveKid}
-              disabled={!kidName.trim() || isSavingKid}
+              disabled={isSavingKid}
               loading={isSavingKid}
             >
               Save

@@ -12,7 +12,6 @@ import {
 } from 'react-native-paper';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useStoriesStore } from '../../src/stores/storiesStore';
-import { replaceAliasesWithNames } from '../../src/services/storyParser';
 import { Story, StoryStage, Kid, ProblemContent } from '../../src/types';
 
 export default function StoryReaderScreen() {
@@ -178,8 +177,8 @@ function StageView({ stage, kids, theme }: StageViewProps) {
   const [selectedKidIndex, setSelectedKidIndex] = useState(0);
   const [showSolution, setShowSolution] = useState(false);
 
-  // Replace aliases with real names in narrative
-  const displayContent = replaceAliasesWithNames(stage.content, kids);
+  // Content uses aliases directly (no replacement needed)
+  const displayContent = stage.content;
 
   // Get problems in the order of kids
   const getProblemsInOrder = (): (ProblemContent | null)[] => {
@@ -250,7 +249,7 @@ function StageView({ stage, kids, theme }: StageViewProps) {
                         : theme.colors.onSurfaceVariant,
                     }}
                   >
-                    {kid.name}
+                    {kid.alias}
                   </Text>
                 </Pressable>
               );
@@ -269,7 +268,7 @@ function StageView({ stage, kids, theme }: StageViewProps) {
             ]}
           >
             <Card.Title
-              title={`${selectedKid.name}'s Challenge`}
+              title={`${selectedKid.alias}'s Challenge`}
               titleVariant="titleMedium"
               left={(props) => (
                 <IconButton
@@ -284,7 +283,7 @@ function StageView({ stage, kids, theme }: StageViewProps) {
                 variant="bodyLarge"
                 style={{ color: theme.colors.onPrimaryContainer }}
               >
-                {replaceAliasesWithNames(selectedProblem.text, kids)}
+                {selectedProblem.text}
               </Text>
             </Card.Content>
           </Card>
@@ -313,7 +312,7 @@ function StageView({ stage, kids, theme }: StageViewProps) {
                     variant="bodyMedium"
                     style={{ color: theme.colors.onSecondaryContainer }}
                   >
-                    {replaceAliasesWithNames(selectedProblem.solution, kids)}
+                    {selectedProblem.solution}
                   </Text>
                 </Card.Content>
               </Card>

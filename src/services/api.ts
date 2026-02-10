@@ -167,7 +167,6 @@ class ApiClient {
     const response = await this.request<
       Array<{
         id: string;
-        name: string;
         grade: string;
         difficulty_level: number;
         alias: string;
@@ -177,7 +176,6 @@ class ApiClient {
 
     return response.map((k) => ({
       id: k.id,
-      name: k.name,
       grade: k.grade,
       difficultyLevel: k.difficulty_level,
       alias: k.alias,
@@ -185,13 +183,11 @@ class ApiClient {
   }
 
   async createKid(data: {
-    name: string;
     grade: string;
     difficultyLevel: number;
   }): Promise<Kid> {
     const response = await this.request<{
       id: string;
-      name: string;
       grade: string;
       difficulty_level: number;
       alias: string;
@@ -199,7 +195,6 @@ class ApiClient {
     }>('/kids', {
       method: 'POST',
       body: JSON.stringify({
-        name: data.name,
         grade: data.grade,
         difficulty_level: data.difficultyLevel,
       }),
@@ -207,7 +202,6 @@ class ApiClient {
 
     return {
       id: response.id,
-      name: response.name,
       grade: response.grade,
       difficultyLevel: response.difficulty_level,
       alias: response.alias,
@@ -216,17 +210,15 @@ class ApiClient {
 
   async updateKid(
     id: string,
-    data: Partial<{ name: string; grade: string; difficultyLevel: number }>
+    data: Partial<{ grade: string; difficultyLevel: number }>
   ): Promise<Kid> {
     const body: Record<string, unknown> = {};
-    if (data.name !== undefined) body.name = data.name;
     if (data.grade !== undefined) body.grade = data.grade;
     if (data.difficultyLevel !== undefined)
       body.difficulty_level = data.difficultyLevel;
 
     const response = await this.request<{
       id: string;
-      name: string;
       grade: string;
       difficulty_level: number;
       alias: string;
@@ -238,7 +230,6 @@ class ApiClient {
 
     return {
       id: response.id,
-      name: response.name,
       grade: response.grade,
       difficultyLevel: response.difficulty_level,
       alias: response.alias,
@@ -267,7 +258,7 @@ class ApiClient {
         mode: string;
         num_stages: number;
         num_kids: number;
-        kid_names: string[];
+        kid_aliases: string[];
         created_at: string;
       }>;
       total: number;
@@ -281,7 +272,7 @@ class ApiClient {
         mode: s.mode as 'plot' | 'story',
         numStages: s.num_stages,
         numKids: s.num_kids,
-        kidNames: s.kid_names,
+        kidAliases: s.kid_aliases,
         createdAt: s.created_at,
       })),
       total: response.total,
@@ -298,7 +289,6 @@ class ApiClient {
       theme: string;
       kids: Array<{
         id: string;
-        name: string;
         grade: string;
         difficulty_level: number;
         alias: string;
@@ -308,7 +298,6 @@ class ApiClient {
         content: string;
         problems: Array<{
           kid_alias: string;
-          kid_name: string;
           text: string;
           solution: string;
         }>;
@@ -325,7 +314,6 @@ class ApiClient {
       theme: response.theme,
       kids: response.kids.map((k) => ({
         id: k.id,
-        name: k.name,
         grade: k.grade,
         difficultyLevel: k.difficulty_level,
         alias: k.alias,
@@ -335,7 +323,6 @@ class ApiClient {
         content: s.content,
         problems: s.problems.map((p) => ({
           kidAlias: p.kid_alias,
-          kidName: p.kid_name,
           text: p.text,
           solution: p.solution,
         })),
@@ -354,7 +341,6 @@ class ApiClient {
       theme: string;
       kids: Array<{
         id: string;
-        name: string;
         grade: string;
         difficulty_level: number;
         alias: string;
@@ -364,7 +350,6 @@ class ApiClient {
         content: string;
         problems: Array<{
           kid_alias: string;
-          kid_name: string;
           text: string;
           solution: string;
         }>;
@@ -391,7 +376,6 @@ class ApiClient {
       theme: response.theme,
       kids: response.kids.map((k) => ({
         id: k.id,
-        name: k.name,
         grade: k.grade,
         difficultyLevel: k.difficulty_level,
         alias: k.alias,
@@ -401,7 +385,6 @@ class ApiClient {
         content: s.content,
         problems: s.problems.map((p) => ({
           kidAlias: p.kid_alias,
-          kidName: p.kid_name,
           text: p.text,
           solution: p.solution,
         })),

@@ -247,7 +247,7 @@ export default function CreateStoryScreen() {
                 onPress={() => toggleKidSelection(kid.id)}
               />
               <View style={styles.kidItemInfo}>
-                <Text variant="bodyLarge">{kid.name}</Text>
+                <Text variant="bodyLarge">{kid.alias}</Text>
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   Grade {kid.grade} | Difficulty {kid.difficultyLevel}/5
                 </Text>
@@ -302,7 +302,7 @@ export default function CreateStoryScreen() {
               Generating Story
             </Text>
             <Text variant="bodyMedium" style={styles.loadingText}>
-              Creating an adventure for {selectedKids.map(k => k.name).join(', ')}...
+              Creating an adventure for {selectedKids.map(k => k.alias).join(', ')}...
             </Text>
           </Surface>
         </View>

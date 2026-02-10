@@ -35,9 +35,9 @@ def generate_story_title(theme: str, role: str) -> str:
     return f"{role} in {theme}"
 
 
-def render_problem_text(text: str, kid_name: str) -> str:
-    """Replace {name} placeholder with actual kid name."""
-    return text.replace("{name}", kid_name)
+def render_problem_text(text: str, kid_alias: str) -> str:
+    """Replace {name} placeholder with kid alias."""
+    return text.replace("{name}", kid_alias)
 
 
 async def get_or_create_template(
@@ -196,7 +196,6 @@ async def generate_story(
     # Convert to KidInfo for OpenAI service
     kid_infos = [
         KidInfo(
-            name=kid.name,
             alias=kid.alias,
             grade=kid.grade,
             difficulty_level=kid.difficulty_level,
@@ -243,7 +242,6 @@ async def generate_story(
         story_kid = UserStoryKid(
             story_id=user_story.id,
             kid_id=kid.id,
-            kid_name=kid.name,
             kid_grade=kid.grade,
             kid_difficulty=kid.difficulty_level,
             kid_alias=kid.alias,
@@ -284,8 +282,8 @@ async def generate_story(
                     stage_number=stage_num,
                     story_kid_id=story_kids[kid.alias].id,
                     problem_id=problem.id,
-                    problem_text_rendered=render_problem_text(problem.problem_text, kid.name),
-                    solution_rendered=render_problem_text(problem.solution, kid.name),
+                    problem_text_rendered=render_problem_text(problem.problem_text, kid.alias),
+                    solution_rendered=render_problem_text(problem.solution, kid.alias),
                 )
                 db.add(story_problem)
 
@@ -313,7 +311,6 @@ async def _build_story_response(db: AsyncSession, story_id: UUID) -> StoryRespon
     kids_response = [
         StoryKidResponse(
             id=sk.id,
-            name=sk.kid_name,
             grade=sk.kid_grade,
             difficulty_level=sk.kid_difficulty,
             alias=sk.kid_alias,
@@ -339,16 +336,13 @@ async def _build_story_response(db: AsyncSession, story_id: UUID) -> StoryRespon
                 problems_response.append(
                     ProblemResponse(
                         kid_alias=story_kid.kid_alias,
-                        kid_name=story_kid.kid_name,
                         text=sp.problem_text_rendered,
                         solution=sp.solution_rendered,
                     )
                 )
 
-        # Replace aliases in content with actual names
+        # Content uses aliases directly (no replacement needed)
         content = template_stage.content
-        for sk in story.story_kids:
-            content = content.replace(sk.kid_alias, sk.kid_name)
 
         stages_response.append(
             StageResponse(
@@ -409,7 +403,7 @@ async def list_stories(
             mode=story.template.mode,
             num_stages=story.template.num_stages,
             num_kids=len(story.story_kids),
-            kid_names=[sk.kid_name for sk in story.story_kids],
+            kid_aliases=[sk.kid_alias for sk in story.story_kids],
             created_at=story.created_at,
         )
         for story in stories

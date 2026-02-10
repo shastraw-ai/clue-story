@@ -102,7 +102,7 @@ export default function HistoryScreen() {
               variant="bodySmall"
               style={[styles.kidsText, { color: theme.colors.onSurfaceVariant }]}
             >
-              {story.kidNames.join(', ')}
+              {story.kidAliases.join(', ')}
             </Text>
           </Card.Content>
         </Card>

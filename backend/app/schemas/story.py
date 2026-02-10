@@ -15,7 +15,6 @@ class StoryGenerateRequest(BaseModel):
 
 class ProblemResponse(BaseModel):
     kid_alias: str
-    kid_name: str
     text: str
     solution: str
 
@@ -28,7 +27,6 @@ class StageResponse(BaseModel):
 
 class StoryKidResponse(BaseModel):
     id: UUID
-    name: str
     grade: str
     difficulty_level: int
     alias: str
@@ -56,7 +54,7 @@ class StoryListItemResponse(BaseModel):
     mode: str
     num_stages: int
     num_kids: int
-    kid_names: list[str]
+    kid_aliases: list[str]
     created_at: datetime
 
 

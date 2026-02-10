@@ -48,7 +48,6 @@ class UserStoryKid(Base):
     kid_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("kids.id", ondelete="SET NULL"), nullable=True
     )
-    kid_name: Mapped[str] = mapped_column(String(100), nullable=False)
     kid_grade: Mapped[str] = mapped_column(String(10), nullable=False)
     kid_difficulty: Mapped[int] = mapped_column(Integer, nullable=False)
     kid_alias: Mapped[str] = mapped_column(String(50), nullable=False)

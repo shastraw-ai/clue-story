@@ -107,7 +107,6 @@ def get_adjusted_difficulty_description(difficulty: int) -> str:
 
 @dataclass
 class KidInfo:
-    name: str
     alias: str
     grade: str
     difficulty_level: int

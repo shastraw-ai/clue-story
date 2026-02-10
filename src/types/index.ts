@@ -4,7 +4,6 @@ export type StoryMode = 'plot' | 'story';
 
 export interface Kid {
   id: string;
-  name: string;
   grade: string; // 'K', '1', '2', ... '12'
   difficultyLevel: number; // 1-5
   alias: string; // Auto-assigned from predefined list
@@ -12,7 +11,6 @@ export interface Kid {
 
 export interface ProblemContent {
   kidAlias: string;
-  kidName: string;
   text: string;
   solution: string;
 }
@@ -25,7 +23,6 @@ export interface StoryStage {
 
 export interface StoryKid {
   id: string;
-  name: string;
   grade: string;
   difficultyLevel: number;
   alias: string;
@@ -50,7 +47,7 @@ export interface StoryListItem {
   mode: StoryMode;
   numStages: number;
   numKids: number;
-  kidNames: string[];
+  kidAliases: string[];
   createdAt: string;
 }
 
